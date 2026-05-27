@@ -1,0 +1,292 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  bid_manager
+  reviewer
+  team_member
+}
+
+enum Industry {
+  Valves
+  Pumps
+  EPC
+  General
+}
+
+enum ProposalStatus {
+  Draft
+  Final
+}
+
+enum ApprovalStatus {
+  none
+  pending_approval
+  approved
+  rejected
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  expired
+}
+
+enum CompanySize {
+  startup
+  sme
+  mid_market
+  enterprise
+  conglomerate
+}
+
+enum SourceType {
+  vault
+  generated
+}
+
+model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  passwordHash    String        @map("password_hash")
+  name            String
+  role            UserRole      @default(team_member)
+  companyName     String?       @map("company_name")
+  organizationId  String?       @map("organization_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  organization     Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  vaultDocuments   VaultDocument[]
+  vaultTextEntries VaultTextEntry[]
+  rfpUploads       RfpUpload[]
+  proposals        Proposal[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model VaultDocument {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  filename              String
+  fileType              String    @map("file_type")
+  documentType          String?   @map("document_type")
+  cloudStoragePath      String?   @map("cloud_storage_path")
+  isPublic              Boolean   @default(false) @map("is_public")
+  industry              Industry  @default(General)
+  tags                  String[]  @default([])
+  extractedSectionsCount Int      @default(0) @map("extracted_sections_count")
+  uploadedAt            DateTime  @default(now()) @map("uploaded_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections VaultSection[]
+
+  @@index([userId])
+  @@map("vault_documents")
+}
+
+model VaultSection {
+  id            String   @id @default(cuid())
+  documentId    String   @map("document_id")
+  sectionTitle  String   @map("section_title")
+  content       String
+  sectionType   String?  @map("section_type")
+  industryTags  String[] @default([]) @map("industry_tags")
+
+  document VaultDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("vault_sections")
+}
+
+model RfpUpload {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  filename      String
+  fileType      String   @map("file_type")
+  cloudStoragePath String? @map("cloud_storage_path")
+  isPublic      Boolean  @default(false) @map("is_public")
+  extractedData Json?    @map("extracted_data")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  proposals         Proposal[]
+  tbeResponses      TbeResponse[]
+  goNoGoAssessment  GoNoGoAssessment?
+
+  @@index([userId])
+  @@map("rfp_uploads")
+}
+
+model Proposal {
+  id                  String         @id @default(cuid())
+  userId              String         @map("user_id")
+  rfpId               String?        @map("rfp_id")
+  templateType        String         @default("General") @map("template_type")
+  title               String
+  status              ProposalStatus @default(Draft)
+  industry            Industry       @default(General)
+  vaultSectionsUsed   Int            @default(0) @map("vault_sections_used")
+  vaultDocumentsUsed  Int            @default(0) @map("vault_documents_used")
+  winScore            Int?           @map("win_score")
+  companySize         CompanySize?   @map("company_size")
+  approvalStatus      ApprovalStatus @default(none) @map("approval_status")
+  approvedById        String?        @map("approved_by_id")
+  approvedAt          DateTime?      @map("approved_at")
+  rejectionReason     String?        @map("rejection_reason")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rfp                RfpUpload?          @relation(fields: [rfpId], references: [id], onDelete: SetNull)
+  sections           ProposalSection[]
+  complianceChecklist ComplianceChecklist?
+
+  @@index([userId])
+  @@map("proposals")
+}
+
+model ProposalSection {
+  id           String     @id @default(cuid())
+  proposalId   String     @map("proposal_id")
+  sectionTitle String     @map("section_title")
+  content      String
+  sourceType   SourceType @default(generated) @map("source_type")
+  sourceId     String?    @map("source_id")
+  orderIndex   Int        @default(0) @map("order_index")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+  @@map("proposal_sections")
+}
+
+model VaultTextEntry {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  content   String
+  tags      String[] @default([])
+  industry  Industry @default(General)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("vault_text_entries")
+}
+
+model ComplianceChecklist {
+  id             String   @id @default(cuid())
+  proposalId     String   @unique @map("proposal_id")
+  checklistItems Json     @map("checklist_items")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@map("compliance_checklists")
+}
+
+model TbeResponse {
+  id            String   @id @default(cuid())
+  rfpId         String   @map("rfp_id")
+  lineItemIndex Int      @map("line_item_index")
+  tag           String
+  responseText  String   @map("response_text")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  rfp RfpUpload @relation(fields: [rfpId], references: [id], onDelete: Cascade)
+
+  @@unique([rfpId, lineItemIndex, tag])
+  @@index([rfpId])
+  @@map("tbe_responses")
+}
+
+model LinkedInPost {
+  id             String   @id @default(cuid())
+  postText       String   @map("post_text")
+  hashtags       String[] @default([])
+  topic          String
+  characterCount Int      @map("character_count")
+  suggestedDay   String?  @map("suggested_day")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("linkedin_posts")
+}
+
+model DemoRequest {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  company     String
+  industry    String?
+  rfpsPerMonth String? @map("rfps_per_month")
+  message     String?
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  @@map("demo_requests")
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  logoUrl     String?  @map("logo_url")
+  brandColor  String?  @map("brand_color")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  members     User[]
+  invites     TeamInvite[]
+
+  @@map("organizations")
+}
+
+model TeamInvite {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  email          String
+  role           UserRole     @default(team_member)
+  invitedById    String       @map("invited_by_id")
+  token          String       @unique
+  status         InviteStatus @default(pending)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  expiresAt      DateTime     @map("expires_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([token])
+  @@map("team_invites")
+}
+
+model GoNoGoAssessment {
+  id             String   @id @default(cuid())
+  rfpId          String   @unique @map("rfp_id")
+  userId         String   @map("user_id")
+  responses      Json
+  totalScore     Int      @map("total_score")
+  maxScore       Int      @map("max_score")
+  recommendation String
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  rfp RfpUpload @relation(fields: [rfpId], references: [id], onDelete: Cascade)
+
+  @@index([rfpId])
+  @@index([userId])
+  @@map("go_no_go_assessments")
+}

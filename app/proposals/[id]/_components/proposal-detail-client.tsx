@@ -1,0 +1,646 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  ArrowLeft, Edit2, Check, X, FileText, Database,
+  Loader2, Zap, Calendar, Shield, CheckCircle, Table, Copy, Download, Trophy,
+  Send, ThumbsUp, ThumbsDown, Clock, GitBranch, FileDown,
+} from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { TbePanel } from "./tbe-panel";
+import { MermaidDiagram } from "@/components/mermaid-diagram";
+
+interface ComplianceItem {
+  id: string;
+  label: string;
+  standard: string;
+  checked: boolean;
+}
+
+interface ProposalSection {
+  id: string;
+  sectionTitle: string;
+  content: string;
+  sourceType: string;
+  sourceId: string | null;
+  orderIndex: number;
+}
+
+interface ProposalData {
+  id: string;
+  title: string;
+  status: string;
+  industry: string;
+  templateType: string;
+  vaultSectionsUsed: number;
+  vaultDocumentsUsed: number;
+  createdAt: string;
+  companySize: string | null;
+  approvalStatus: string;
+  approvedAt: string | null;
+  rejectionReason: string | null;
+  sections: ProposalSection[];
+  rfp: any;
+  complianceChecklist: {
+    id: string;
+    checklistItems: ComplianceItem[];
+  } | null;
+}
+
+export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
+  const router = useRouter();
+  const { data: session } = useSession() || {};
+  const isAdmin = (session?.user as any)?.role === "admin";
+  const [proposal, setProposal] = useState<ProposalData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [checklistItems, setChecklistItems] = useState<ComplianceItem[]>([]);
+  const [savingChecklist, setSavingChecklist] = useState(false);
+  const [activeTab, setActiveTab] = useState<"proposal" | "tbe">("proposal");
+  const [duplicating, setDuplicating] = useState(false);
+  const [winScore, setWinScore] = useState<{ score: number; breakdown: any } | null>(null);
+  const [loadingScore, setLoadingScore] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [diagrams, setDiagrams] = useState<Record<string, { code: string; title: string }>>({});
+  const [diagramLoading, setDiagramLoading] = useState<string | null>(null);
+  const [exportingDocx, setExportingDocx] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch(`/api/proposals/${proposalId}`);
+        const data = await res.json().catch(() => null);
+        if (!res?.ok || !data) throw new Error("Not found");
+        setProposal(data);
+        if (data?.complianceChecklist?.checklistItems) {
+          setChecklistItems(data.complianceChecklist.checklistItems as ComplianceItem[]);
+        }
+      } catch {
+        toast.error("Failed to load proposal");
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (proposalId) load();
+  }, [proposalId]);
+
+  useEffect(() => {
+    async function fetchScore() {
+      if (!proposal) return;
+      setLoadingScore(true);
+      try {
+        const res = await fetch(`/api/proposals/${proposalId}/win-score`);
+        const data = await res.json().catch(() => null);
+        if (res?.ok && data) setWinScore(data);
+      } catch { /* silent */ } finally { setLoadingScore(false); }
+    }
+    fetchScore();
+  }, [proposal, proposalId]);
+
+  async function handleExportPdf() {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/export-pdf`);
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!res?.ok || !contentType.includes("application/pdf")) {
+        const errData = await res.json().catch(() => ({ error: "Export failed" }));
+        throw new Error(errData?.error ?? "Failed to generate PDF");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(proposal?.title ?? "proposal").replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("PDF downloaded!");
+    } catch (err: any) {
+      console.error("PDF export error:", err);
+      toast.error(err?.message ?? "Failed to export PDF. Please try again.");
+    } finally { setExporting(false); }
+  }
+
+  function getScoreColor(score: number) {
+    if (score >= 80) return "text-emerald-600";
+    if (score >= 60) return "text-amber-600";
+    return "text-red-600";
+  }
+  function getScoreBg(score: number) {
+    if (score >= 80) return "bg-emerald-50 border-emerald-200";
+    if (score >= 60) return "bg-amber-50 border-amber-200";
+    return "bg-red-50 border-red-200";
+  }
+
+  async function handleSaveSection(sectionId: string) {
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/sections`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionId, content: editContent }),
+      });
+      if (!res?.ok) throw new Error();
+      setProposal((prev: ProposalData | null) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          sections: (prev?.sections ?? [])?.map((s: ProposalSection) =>
+            s?.id === sectionId ? { ...s, content: editContent } : s
+          ),
+        };
+      });
+      toast.success("Section saved");
+      setEditingSection(null);
+    } catch {
+      toast.error("Failed to save");
+    }
+  }
+
+  async function handleToggleChecklistItem(itemId: string) {
+    const previousItems = [...checklistItems];
+    const updated = checklistItems.map((item) =>
+      item.id === itemId ? { ...item, checked: !item.checked } : item
+    );
+    setChecklistItems(updated);
+    setSavingChecklist(true);
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/compliance`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklistItems: updated }),
+      });
+      if (!res?.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error ?? "Save failed");
+      }
+      // Refetch to confirm persistence
+      const confirmRes = await fetch(`/api/proposals/${proposalId}/compliance`);
+      if (confirmRes?.ok) {
+        const saved = await confirmRes.json().catch(() => null);
+        if (saved?.checklistItems) {
+          setChecklistItems(saved.checklistItems as ComplianceItem[]);
+        }
+      }
+    } catch (err: any) {
+      console.error("Compliance save error:", err);
+      toast.error(err?.message ?? "Failed to save checklist");
+      // Revert to previous state
+      setChecklistItems(previousItems);
+    } finally {
+      setSavingChecklist(false);
+    }
+  }
+
+  async function handleDuplicate() {
+    if (!proposal) return;
+    setDuplicating(true);
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/duplicate`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res?.ok || !data?.id) throw new Error();
+      toast.success("Proposal duplicated!");
+      router.push(`/proposals/${data.id}`);
+    } catch {
+      toast.error("Failed to duplicate proposal");
+    } finally {
+      setDuplicating(false);
+    }
+  }
+
+  async function handleApprovalAction(action: "submit" | "approve" | "reject") {
+    setApprovalLoading(true);
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reason: rejectReason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res?.ok) throw new Error(data?.error ?? "Action failed");
+      setProposal(data);
+      setShowRejectInput(false);
+      setRejectReason("");
+      const msgs: Record<string, string> = {
+        submit: "Proposal submitted for approval!",
+        approve: "Proposal approved!",
+        reject: "Proposal rejected.",
+      };
+      toast.success(msgs[action] ?? "Done");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Action failed");
+    } finally { setApprovalLoading(false); }
+  }
+
+  function getBestDiagramType(sectionTitle: string, content: string): string {
+    const title = sectionTitle.toLowerCase();
+    const text = content.toLowerCase();
+    // PFD for process/manufacturing/engineering sections
+    if (/process flow|manufacturing process|production process|piping|p&id|pfd/.test(title) || /process flow|manufacturing line|equipment|reactor|vessel|heat exchanger/.test(text)) return "pfd";
+    // Gantt for schedule/timeline sections
+    if (/schedule|timeline|delivery|milestones?|project plan|implementation/.test(title) || /week \d|phase \d|month \d|delivery schedule|lead time/.test(text)) return "gantt";
+    // Sequence for interaction/communication sections
+    if (/communication|inspection|stakeholder|interface|interaction|handover/.test(title) || /submit|receive|review|approve|notify|respond/.test(text)) return "sequence";
+    // Default to flowchart
+    return "flowchart";
+  }
+
+  async function handleGenerateDiagram(sectionId: string, diagramType: string) {
+    setDiagramLoading(sectionId);
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/diagram`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionId, diagramType }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res?.ok) throw new Error(data?.error ?? "Failed");
+      setDiagrams((prev) => ({ ...prev, [sectionId]: { code: data.mermaidCode, title: data.title } }));
+      toast.success("Diagram generated!");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to generate diagram");
+    } finally {
+      setDiagramLoading(null);
+    }
+  }
+
+  async function handleExportDocx() {
+    setExportingDocx(true);
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/export-docx`);
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!res?.ok || contentType.includes("application/json")) {
+        const errData = await res.json().catch(() => ({ error: "Export failed" }));
+        throw new Error(errData?.error ?? "Failed to generate DOCX");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(proposal?.title ?? "proposal").replace(/[^a-zA-Z0-9]/g, "_")}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("DOCX downloaded!");
+    } catch (err: any) {
+      console.error("DOCX export error:", err);
+      toast.error(err?.message ?? "Failed to export DOCX");
+    } finally {
+      setExportingDocx(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!proposal) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-muted-foreground">Proposal not found.</p>
+        <Button variant="outline" onClick={() => router.push("/proposals")} className="mt-4">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Proposals
+        </Button>
+      </div>
+    );
+  }
+
+  const vaultSections = proposal?.sections?.filter((s: ProposalSection) => s?.sourceType === "vault") ?? [];
+  const checkedCount = checklistItems.filter((i) => i.checked).length;
+
+  return (
+    <div className="p-4 md:p-8 max-w-[1200px] mx-auto">
+      <Button variant="ghost" onClick={() => router.push("/proposals")} className="mb-4">
+        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Proposals
+      </Button>
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight">{proposal?.title}</h1>
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            <Badge variant={proposal?.status === "Final" ? "default" : "secondary"}>
+              {proposal?.status}
+            </Badge>
+            <Badge variant="outline">{proposal?.industry}</Badge>
+            {proposal?.companySize && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                {({ startup: "Startup", sme: "SME", mid_market: "Mid-Market", enterprise: "Enterprise", conglomerate: "Conglomerate" } as Record<string, string>)[proposal.companySize] ?? proposal.companySize}
+              </Badge>
+            )}
+            <span className="text-sm text-muted-foreground">{proposal?.templateType} template</span>
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              {new Date(proposal?.createdAt ?? "").toLocaleDateString()}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {/* Win Score badge */}
+          {winScore && (
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-semibold ${getScoreBg(winScore.score)}`}>
+              <Trophy className={`w-4 h-4 ${getScoreColor(winScore.score)}`} />
+              <span className={getScoreColor(winScore.score)}>{winScore.score}/100</span>
+            </div>
+          )}
+          {loadingScore && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPdf}
+            disabled={exporting}
+            className="gap-2"
+          >
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportDocx}
+            disabled={exportingDocx}
+            className="gap-2"
+          >
+            {exportingDocx ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+            DOCX
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDuplicate}
+            disabled={duplicating}
+            className="gap-2"
+          >
+            {duplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+            Duplicate
+          </Button>
+        </div>
+      </div>
+
+      {/* Vault usage banner */}
+      {((proposal?.vaultSectionsUsed ?? 0) > 0 || (vaultSections?.length ?? 0) > 0) && (
+        <Card className="mb-6 border-emerald-200 bg-emerald-50 shadow-sm">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Database className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span className="text-sm text-emerald-800">
+              Generated using <strong>{vaultSections?.length ?? proposal?.vaultSectionsUsed ?? 0}</strong> vault sections from <strong>{proposal?.vaultDocumentsUsed ?? 0}</strong> documents
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Approval Workflow */}
+      {proposal?.approvalStatus && proposal.approvalStatus !== "none" && (
+        <Card className={`mb-6 shadow-sm ${
+          proposal.approvalStatus === "pending_approval" ? "border-amber-200 bg-amber-50" :
+          proposal.approvalStatus === "approved" ? "border-emerald-200 bg-emerald-50" :
+          "border-red-200 bg-red-50"
+        }`}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                {proposal.approvalStatus === "pending_approval" && <Clock className="w-5 h-5 text-amber-600" />}
+                {proposal.approvalStatus === "approved" && <ThumbsUp className="w-5 h-5 text-emerald-600" />}
+                {proposal.approvalStatus === "rejected" && <ThumbsDown className="w-5 h-5 text-red-600" />}
+                <span className={`text-sm font-medium ${
+                  proposal.approvalStatus === "pending_approval" ? "text-amber-800" :
+                  proposal.approvalStatus === "approved" ? "text-emerald-800" : "text-red-800"
+                }`}>
+                  {proposal.approvalStatus === "pending_approval" && "Pending Admin Approval"}
+                  {proposal.approvalStatus === "approved" && `Approved${proposal.approvedAt ? ` on ${new Date(proposal.approvedAt).toLocaleDateString()}` : ""}`}
+                  {proposal.approvalStatus === "rejected" && `Rejected${proposal.rejectionReason ? `: ${proposal.rejectionReason}` : ""}`}
+                </span>
+              </div>
+              {isAdmin && proposal.approvalStatus === "pending_approval" && (
+                <div className="flex items-center gap-2">
+                  {showRejectInput ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Reason (optional)"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        className="h-8 px-2 text-sm border rounded-md w-48"
+                      />
+                      <Button size="sm" variant="destructive" onClick={() => handleApprovalAction("reject")} disabled={approvalLoading}>
+                        {approvalLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Reject"}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowRejectInput(false)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1" onClick={() => handleApprovalAction("approve")} disabled={approvalLoading}>
+                        {approvalLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ThumbsUp className="w-3 h-3" />} Approve
+                      </Button>
+                      <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 gap-1" onClick={() => setShowRejectInput(true)}>
+                        <ThumbsDown className="w-3 h-3" /> Reject
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Submit for Approval button - show when status is none or rejected */}
+      {(proposal?.approvalStatus === "none" || proposal?.approvalStatus === "rejected") && proposal?.status === "Draft" && (
+        <div className="mb-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleApprovalAction("submit")}
+            disabled={approvalLoading}
+            className="gap-2"
+          >
+            {approvalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Submit for Approval
+          </Button>
+        </div>
+      )}
+
+      {/* Compliance Checklist */}
+      {checklistItems.length > 0 && (
+        <Card className="mb-6 shadow-sm border-blue-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-semibold flex items-center gap-2">
+                <Shield className="w-5 h-5 text-primary" />
+                Compliance Checklist
+              </h3>
+              <div className="flex items-center gap-2">
+                <Badge variant={checkedCount === checklistItems.length ? "default" : "secondary"} className="text-xs">
+                  {checkedCount}/{checklistItems.length} verified
+                </Badge>
+                {savingChecklist && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {checklistItems.map((item) => (
+                <label
+                  key={item.id}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={() => handleToggleChecklistItem(item.id)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-sm font-medium ${item.checked ? "line-through text-muted-foreground" : ""}`}>
+                      {item.label}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-0.5">{item.standard}</p>
+                  </div>
+                  {item.checked && <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />}
+                </label>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tab Navigation - show TBE tab only when RFP has line items */}
+      {proposal?.rfp?.extractedData && (proposal.rfp.extractedData as any)?.lineItems?.length > 0 && (
+        <div className="flex border-b border-border mb-6">
+          <button
+            onClick={() => setActiveTab("proposal")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px",
+              activeTab === "proposal"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            )}
+          >
+            <FileText className="w-4 h-4" />
+            Proposal Sections
+          </button>
+          <button
+            onClick={() => setActiveTab("tbe")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px",
+              activeTab === "tbe"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            )}
+          >
+            <Table className="w-4 h-4" />
+            TBE Responses
+          </button>
+        </div>
+      )}
+
+      {/* TBE Panel */}
+      {activeTab === "tbe" && proposal?.rfp?.id && (proposal.rfp.extractedData as any)?.lineItems?.length > 0 && (
+        <TbePanel
+          rfpId={proposal.rfp.id}
+          lineItems={(proposal.rfp.extractedData as any)?.lineItems ?? []}
+          templateType={proposal.templateType}
+        />
+      )}
+
+      {/* Sections */}
+      {activeTab === "proposal" && <div className="space-y-4">
+        {(proposal?.sections ?? [])?.map((section: ProposalSection, idx: number) => (
+          <Card key={section?.id} className="shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
+                  <h3 className="font-display font-semibold">{section?.sectionTitle}</h3>
+                  {section?.sourceType === "vault" ? (
+                    <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                      <Database className="w-3 h-3 mr-1" /> From Vault
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                      <Zap className="w-3 h-3 mr-1" /> AI Generated
+                    </Badge>
+                  )}
+                </div>
+                {editingSection === section?.id ? (
+                  <div className="flex gap-1">
+                    <Button size="sm" onClick={() => handleSaveSection(section?.id)}>
+                      <Check className="w-3 h-3 mr-1" /> Save
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingSection(null)}>
+                      <X className="w-3 h-3 mr-1" /> Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="ghost" onClick={() => { setEditingSection(section?.id); setEditContent(section?.content ?? ""); }}>
+                    <Edit2 className="w-3 h-3 mr-1" /> Edit
+                  </Button>
+                )}
+              </div>
+              {editingSection === section?.id ? (
+                <Textarea
+                  value={editContent ?? ""}
+                  onChange={(e: any) => setEditContent(e?.target?.value ?? "")}
+                  rows={10}
+                  className="font-sans text-sm"
+                />
+              ) : (
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  {section?.content}
+                </div>
+              )}
+
+              {/* Diagram generation */}
+              <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground">
+                  {diagrams[section?.id] ? "Regenerate diagram:" : "Generate diagram:"}
+                </span>
+                {["flowchart", "sequence", "gantt", "pfd"].map((type) => (
+                  <Button
+                    key={type}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    disabled={diagramLoading === section?.id}
+                    onClick={() => handleGenerateDiagram(section?.id, type)}
+                  >
+                    {diagramLoading === section?.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <GitBranch className="w-3 h-3" />
+                    )}
+                    {type === "pfd" ? "PFD" : type.charAt(0).toUpperCase() + type.slice(1)}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Render diagram if exists */}
+              {diagrams[section?.id] && (
+                <div className="mt-3">
+                  <MermaidDiagram
+                    chart={diagrams[section.id].code}
+                    title={`${diagrams[section.id].title} — Diagram`}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>}
+    </div>
+  );
+}
