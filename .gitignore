@@ -40,3 +40,5 @@ deploy_bundle/
 Thumbs.db
 .idea/
 .vscode/
+
+.vercel

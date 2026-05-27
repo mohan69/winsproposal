@@ -56,6 +56,7 @@ AWS_SECRET_ACCESS_KEY=
 ## 4. Configure Vercel
 
 1. Import the GitHub repository into Vercel.
+   - If using the Vercel CLI, make sure the Vercel account has a GitHub Login Connection before running `vercel git connect`.
 2. Set the project root to this folder if the repo contains parent directories:
    - `winsproposal/nextjs_space`
 3. Use the default install command:
