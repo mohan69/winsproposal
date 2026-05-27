@@ -260,7 +260,7 @@ Rules:
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}` },
             body: JSON.stringify({
-              model: "gpt-4o-2024-11-20",
+              model: "gpt-4o",
               messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
               temperature: 0.3,
               max_tokens: 1500,

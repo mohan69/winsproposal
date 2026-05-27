@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 
 const LARGE_MODEL = "gemini-2.5-pro";
-const SMALL_MODEL = "gpt-4o-2024-11-20";
+const SMALL_MODEL = "gpt-4o";
 const MAX_TEXT_CHARS = 120000;
 
 const vaultPrompt = `You are an expert document analyzer specializing in industrial proposals, RFPs, and technical documentation for manufacturing and EPC industries.

@@ -171,7 +171,7 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
         Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-2024-11-20",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemMessage },
           { role: "user", content: userMessage },

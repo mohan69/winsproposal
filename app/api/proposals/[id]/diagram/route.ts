@@ -74,7 +74,7 @@ Generate the Mermaid diagram code now:`;
         Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-2024-11-20",
+        model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

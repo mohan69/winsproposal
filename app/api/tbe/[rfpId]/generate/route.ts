@@ -18,7 +18,7 @@ async function callLLM(messages: any[], retries = 2): Promise<string> {
           Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-2024-11-20",
+          model: "gpt-4o",
           messages,
           temperature: 0.3,
           max_tokens: 4000,

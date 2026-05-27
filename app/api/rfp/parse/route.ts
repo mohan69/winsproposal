@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 
 const LARGE_MODEL = "gemini-2.5-pro";
-const SMALL_MODEL = "gpt-4o-2024-11-20";
+const SMALL_MODEL = "gpt-4o";
 const MAX_TEXT_CHARS = 120000;
 
 const systemPrompt = `You are an expert RFP analyst. Extract all requirements, line items, compliance needs, and evaluation criteria from this RFP/MR document.
