@@ -14,6 +14,9 @@ import {
   GO_NO_GO_QUESTIONS, GO_NO_GO_OPTIONS,
   type ProposalTemplate,
 } from "@/lib/templates";
+import { DemoKpiDashboard } from "@/components/demo-kpi-dashboard";
+import { VisualizationDemoLayer } from "@/components/visualization-demo-layer";
+import { DemoKnowledgeAssets } from "@/components/demo-knowledge-assets";
 
 const industryIcons: Record<string, any> = {
   Valves: Factory,
@@ -131,6 +134,12 @@ export function TemplatesClient() {
           )}
         </CardContent>
       </Card>
+
+      <div className="grid gap-6 mb-8">
+        <VisualizationDemoLayer />
+        <DemoKnowledgeAssets />
+        <DemoKpiDashboard />
+      </div>
 
       {/* Base Templates */}
       <div className="space-y-6">

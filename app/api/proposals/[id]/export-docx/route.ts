@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
+import { generateVisualization } from "@/lib/visualization-service";
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, BorderStyle, PageBreak, Header, Footer,
@@ -218,83 +219,28 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }
     }
 
-    // ========== Generate diagrams for each section via LLM ==========
+    // ========== Generate export-safe diagrams for each section ==========
     const sectionDiagramImages: Record<string, ImageRun | null> = {};
 
     if (includeDiagrams) {
-      function getBestDiagramType(sectionTitle: string, content: string): string {
-        const title = sectionTitle.toLowerCase();
-        const text = content.toLowerCase();
-        if (/process flow|manufacturing process|production process|piping|p&id|pfd/.test(title) || /process flow|manufacturing line|equipment|reactor|vessel|heat exchanger/.test(text)) return "pfd";
-        if (/schedule|timeline|delivery|milestones?|project plan|implementation/.test(title) || /week \d|phase \d|month \d|delivery schedule|lead time/.test(text)) return "gantt";
-        if (/communication|inspection|stakeholder|interface|interaction|handover/.test(title) || /submit|receive|review|approve|notify|respond/.test(text)) return "sequence";
-        return "flowchart";
-      }
-
       // Generate Mermaid diagrams and convert to images using mermaid.ink only when explicitly requested.
       for (const section of proposal.sections) {
         try {
-          const diagramType = getBestDiagramType(section.sectionTitle, section.content);
-          const diagramTypeMap: Record<string, string> = {
-            flowchart: "a flowchart (graph TD) showing the process flow, decision points, and key steps",
-            sequence: "a sequence diagram showing interactions between stakeholders, systems, or departments",
-            gantt: "a Gantt chart showing the project timeline, milestones, and phases",
-            pfd: "a process flow diagram (graph LR) showing the manufacturing/engineering process flow with equipment, inputs, outputs, and connections",
-          };
-          const diagramDesc = diagramTypeMap[diagramType] || diagramTypeMap.flowchart;
-
-          const systemPrompt = `You are an expert technical diagram creator. Generate valid Mermaid.js diagram code.
-Rules:
-- Output ONLY the raw Mermaid diagram code, nothing else
-- No markdown code fences, no explanation text
-- Use clear, readable labels (not too long)
-- Keep node IDs simple (A, B, C)
-- Maximum 12 nodes for readability
-- CRITICAL: NEVER use parentheses () inside node labels. Use square brackets: A["Label text"]. Replace abbreviations like "(NDT)" with " - NDT".
-- Always quote node labels with double quotes inside brackets: A["My Label"]
-- NEVER use round brackets () for node shapes.`;
-
-          const userPrompt = `Generate ${diagramDesc} for: ${section.sectionTitle}\nContent: ${section.content.substring(0, 1500)}\nGenerate the Mermaid diagram code now:`;
-
-          const llmRes = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}` },
-            body: JSON.stringify({
-              model: "gpt-4o",
-              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-              temperature: 0.3,
-              max_tokens: 1500,
-            }),
+          const diagram = await generateVisualization({
+            title: proposal.title,
+            sectionTitle: section.sectionTitle,
+            industry: proposal.industry,
+            templateType: proposal.templateType,
+            content: section.content,
           });
 
-          if (llmRes.ok) {
-            const llmData = await llmRes.json();
-            let mermaidCode = llmData?.choices?.[0]?.message?.content ?? "";
-            mermaidCode = mermaidCode.replace(/```mermaid\n?/gi, "").replace(/```\n?/g, "").trim();
-            // Sanitize parentheses
-            mermaidCode = mermaidCode.split("\n").map((line: string) => {
-              if (/^\s*(graph|subgraph|end|style|classDef|class |linkStyle|%%)/i.test(line)) return line;
-              return line.replace(/(\[\"?)(.*?)(\"?\])/g, (_m: string, open: string, content: string, close: string) => {
-                const sanitized = content.replace(/\(/g, " - ").replace(/\)/g, "").replace(/\s+-\s+\s*/g, " - ");
-                const tOpen = open.endsWith('"') ? open : open + '"';
-                const tClose = close.startsWith('"') ? close : '"' + close;
-                return `${tOpen}${sanitized}${tClose}`;
-              });
-            }).join("\n");
-
-            if (mermaidCode) {
-              const encoded = Buffer.from(mermaidCode).toString("base64");
-              const mermaidBase = 'https://' + 'mermaid' + '.ink';
-              const mermaidUrl = mermaidBase + '/img/' + encoded + '?type=png&width=700&height=400&bgColor=white';
-              const imgData = await fetchImageBuffer(mermaidUrl);
-              if (imgData && imgData.buffer.length > 500) {
-                sectionDiagramImages[section.id] = new ImageRun({
-                  data: imgData.buffer,
-                  transformation: { width: 580, height: 330 },
-                  type: "png",
-                });
-              }
-            }
+          const imgData = await fetchImageBuffer(diagram.imageUrl);
+          if (imgData && imgData.buffer.length > 500) {
+            sectionDiagramImages[section.id] = new ImageRun({
+              data: imgData.buffer,
+              transformation: { width: 580, height: 330 },
+              type: "png",
+            });
           }
         } catch (err) {
           console.error(`Diagram generation failed for section ${section.sectionTitle}:`, err);

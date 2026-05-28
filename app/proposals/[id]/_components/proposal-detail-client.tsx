@@ -10,12 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft, Edit2, Check, X, FileText, Database,
   Loader2, Zap, Calendar, Shield, CheckCircle, Table, Copy, Download, Trophy,
-  Send, ThumbsUp, ThumbsDown, Clock, GitBranch, FileDown,
+  Send, ThumbsUp, ThumbsDown, Clock, GitBranch, FileDown, Network,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { TbePanel } from "./tbe-panel";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
+import { VISUALIZATION_TYPES, type VisualizationType } from "@/lib/visualization-service";
 
 interface ComplianceItem {
   id: string;
@@ -72,9 +73,10 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
-  const [diagrams, setDiagrams] = useState<Record<string, { code: string; title: string }>>({});
+  const [diagrams, setDiagrams] = useState<Record<string, { code: string; title: string; type?: VisualizationType }>>({});
   const [diagramLoading, setDiagramLoading] = useState<string | null>(null);
   const [exportingDocx, setExportingDocx] = useState(false);
+  const [includeDiagramsInExport, setIncludeDiagramsInExport] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -111,7 +113,8 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   async function handleExportPdf() {
     setExporting(true);
     try {
-      const res = await fetch(`/api/proposals/${proposalId}/export-pdf`);
+      const query = includeDiagramsInExport ? "?includeDiagrams=true" : "";
+      const res = await fetch(`/api/proposals/${proposalId}/export-pdf${query}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res?.ok || !contentType.includes("application/pdf")) {
         const errData = await res.json().catch(() => ({ error: "Export failed" }));
@@ -243,19 +246,6 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
     } finally { setApprovalLoading(false); }
   }
 
-  function getBestDiagramType(sectionTitle: string, content: string): string {
-    const title = sectionTitle.toLowerCase();
-    const text = content.toLowerCase();
-    // PFD for process/manufacturing/engineering sections
-    if (/process flow|manufacturing process|production process|piping|p&id|pfd/.test(title) || /process flow|manufacturing line|equipment|reactor|vessel|heat exchanger/.test(text)) return "pfd";
-    // Gantt for schedule/timeline sections
-    if (/schedule|timeline|delivery|milestones?|project plan|implementation/.test(title) || /week \d|phase \d|month \d|delivery schedule|lead time/.test(text)) return "gantt";
-    // Sequence for interaction/communication sections
-    if (/communication|inspection|stakeholder|interface|interaction|handover/.test(title) || /submit|receive|review|approve|notify|respond/.test(text)) return "sequence";
-    // Default to flowchart
-    return "flowchart";
-  }
-
   async function handleGenerateDiagram(sectionId: string, diagramType: string) {
     setDiagramLoading(sectionId);
     try {
@@ -266,7 +256,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res?.ok) throw new Error(data?.error ?? "Failed");
-      setDiagrams((prev) => ({ ...prev, [sectionId]: { code: data.mermaidCode, title: data.title } }));
+      setDiagrams((prev) => ({ ...prev, [sectionId]: { code: data.mermaidCode, title: data.title, type: data.visualizationType } }));
       toast.success("Diagram generated!");
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to generate diagram");
@@ -278,7 +268,8 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   async function handleExportDocx() {
     setExportingDocx(true);
     try {
-      const res = await fetch(`/api/proposals/${proposalId}/export-docx`);
+      const query = includeDiagramsInExport ? "?includeDiagrams=true" : "";
+      const res = await fetch(`/api/proposals/${proposalId}/export-docx${query}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res?.ok || contentType.includes("application/json")) {
         const errData = await res.json().catch(() => ({ error: "Export failed" }));
@@ -392,6 +383,29 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
           </Button>
         </div>
       </div>
+
+      <Card className="mb-6 border-slate-200 bg-slate-50/60 shadow-sm">
+        <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Network className="w-5 h-5 text-primary mt-0.5" />
+            <div>
+              <h3 className="font-display font-semibold text-sm">Visualization Layer</h3>
+              <p className="text-xs text-muted-foreground">
+                Preview EPC, valve, pump, compliance, lifecycle, and dependency diagrams. Exports include diagrams only when enabled.
+              </p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={includeDiagramsInExport}
+              onChange={(event) => setIncludeDiagramsInExport(event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            Include diagrams in PDF/DOCX
+          </label>
+        </CardContent>
+      </Card>
 
       {/* Vault usage banner */}
       {((proposal?.vaultSectionsUsed ?? 0) > 0 || (vaultSections?.length ?? 0) > 0) && (
@@ -609,21 +623,22 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 <span className="text-xs text-muted-foreground">
                   {diagrams[section?.id] ? "Regenerate diagram:" : "Generate diagram:"}
                 </span>
-                {["flowchart", "sequence", "gantt", "pfd"].map((type) => (
+                {VISUALIZATION_TYPES.map((type) => (
                   <Button
-                    key={type}
+                    key={type.id}
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs gap-1"
                     disabled={diagramLoading === section?.id}
-                    onClick={() => handleGenerateDiagram(section?.id, type)}
+                    onClick={() => handleGenerateDiagram(section?.id, type.id)}
+                    title={type.description}
                   >
                     {diagramLoading === section?.id ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
                     ) : (
                       <GitBranch className="w-3 h-3" />
                     )}
-                    {type === "pfd" ? "PFD" : type.charAt(0).toUpperCase() + type.slice(1)}
+                    {type.label}
                   </Button>
                 ))}
               </div>

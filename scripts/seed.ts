@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   const passwordHash = await bcrypt.hash("johndoe123", 12);
 
-  await prisma.user.upsert({
+  const demoUser = await prisma.user.upsert({
     where: { email: "john@doe.com" },
     update: {},
     create: {
@@ -68,7 +68,77 @@ async function main() {
     });
   }
 
-  console.log("Seed completed successfully (including LinkedIn posts)");
+  const demoKnowledgeAssets = [
+    {
+      title: "Historical Proposal Response - API 600 Gate Valves",
+      industry: "Valves" as const,
+      tags: ["historical-response", "api-600", "gate-valve", "refinery"],
+      content: `We confirm compliance with API 600 latest edition for cast steel gate valves in refinery isolation service. The offered valves include bolted bonnet construction, renewable seat rings, full material traceability, hydrostatic shell and seat testing per API 598, PMI on pressure-retaining components, and final documentation including MTCs, ITP, dimensional records, and test certificates. Deviations, if any, will be recorded in a controlled deviation register and submitted for client approval before manufacturing release.`,
+    },
+    {
+      title: "Technical Clause - API 600 Valve Inspection and Testing",
+      industry: "Valves" as const,
+      tags: ["technical-clause", "api-600", "inspection", "testing"],
+      content: `All API 600 valves shall be inspected against approved drawings, datasheets, and ITP hold points. Mandatory tests include shell hydrotest, high-pressure closure test, low-pressure seat test where applicable, backseat test, visual inspection, marking verification, coating inspection, and final preservation check. Witness and hold points shall be aligned with client inspection requirements before PO acknowledgement.`,
+    },
+    {
+      title: "Valve Specification - Refinery Isolation Service",
+      industry: "Valves" as const,
+      tags: ["specification", "valve", "refinery", "nace"],
+      content: `Body and bonnet materials shall match the line class and fluid service. Sour service applications shall comply with NACE MR0175 / ISO 15156. Trim selection shall consider corrosion, erosion, temperature, pressure class, and shut-off requirement. Stem packing shall support low-emission operation, and fire-safe certification shall be provided for applicable quarter-turn and isolation valve packages.`,
+    },
+    {
+      title: "Pump Technical Specification - API 610 Centrifugal Pump",
+      industry: "Pumps" as const,
+      tags: ["specification", "api-610", "centrifugal-pump", "npsh"],
+      content: `The pump package shall be designed in accordance with API 610 / ISO 13709. The proposal shall include rated flow, rated head, efficiency, NPSHR, NPSHA margin statement, minimum continuous stable flow, preferred operating region, driver rating, seal plan per API 682, coupling, baseplate, testing scope, vibration acceptance limits, and performance guarantee conditions.`,
+    },
+    {
+      title: "Compliance Template - Industrial Proposal Review",
+      industry: "EPC" as const,
+      tags: ["compliance-template", "proposal-review", "deviation-register"],
+      content: `Compliance review shall map every mandatory RFP clause to one of four statuses: compliant, partially compliant, deviation requested, or not applicable. Each deviation shall include clause reference, reason, technical impact, commercial impact, mitigation, and approval status. Final proposal release requires closure of all mandatory compliance items or explicit management approval.`,
+    },
+    {
+      title: "Deviation Example - Pump Seal Plan Alternative",
+      industry: "Pumps" as const,
+      tags: ["deviation", "api-682", "seal-plan", "pump"],
+      content: `Client requested API 682 Plan 53B for all hazardous service pumps. We propose Plan 53A for non-critical clean hydrocarbon service where operating pressure and temperature remain within acceptable limits. The alternative reduces complexity while maintaining seal reliability. Supporting evidence includes seal vendor recommendation, fluid compatibility review, and lifecycle maintenance comparison.`,
+    },
+    {
+      title: "Engineering Workflow Template - EPC Proposal Package",
+      industry: "EPC" as const,
+      tags: ["engineering-workflow", "epc", "proposal-lifecycle", "dependencies"],
+      content: `The EPC proposal workflow begins with RFP intake and bid/no-bid review, followed by engineering basis development, discipline inputs, vendor budgetary offers, construction methodology, HSE review, QA/QC review, commercial consolidation, management approval, and final submission. Key dependencies include P&IDs, line list, equipment datasheets, geotechnical inputs, battery limits, and client standards.`,
+    },
+    {
+      title: "Industrial Automation Workflow - FAT and SAT",
+      industry: "EPC" as const,
+      tags: ["automation", "fat", "sat", "scada", "plc"],
+      content: `Automation proposals shall include control system architecture, PLC/SCADA scope, I/O count assumptions, panel design basis, network topology, cybersecurity boundary, cause-and-effect validation, FAT procedure, SAT procedure, commissioning support, backup strategy, and operator training plan. Deliverables include instrument index, I/O list, loop diagrams, logic narratives, and as-built documentation.`,
+    },
+  ];
+
+  for (const asset of demoKnowledgeAssets) {
+    await prisma.vaultTextEntry.upsert({
+      where: { id: asset.title.toLowerCase().replace(/[^a-z0-9]/g, "-") },
+      update: {
+        content: asset.content,
+        tags: asset.tags,
+        industry: asset.industry,
+      },
+      create: {
+        id: asset.title.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+        userId: demoUser.id,
+        title: asset.title,
+        content: asset.content,
+        tags: asset.tags,
+        industry: asset.industry,
+      },
+    });
+  }
+
+  console.log("Seed completed successfully (including LinkedIn posts and demo knowledge assets)");
 }
 
 main()

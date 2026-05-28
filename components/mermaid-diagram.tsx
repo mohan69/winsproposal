@@ -37,7 +37,7 @@ export function MermaidDiagram({ chart, title }: MermaidDiagramProps) {
             fontSize: "14px",
           },
           flowchart: { curve: "basis", padding: 15 },
-          securityLevel: "loose",
+          securityLevel: "strict",
         });
 
         const { svg } = await mermaid.render(idRef.current, chart);

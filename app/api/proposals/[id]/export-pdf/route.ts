@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateProposalHtml } from "@/lib/pdf-template";
+import { generateVisualization } from "@/lib/visualization-service";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -67,81 +68,26 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const sectionDiagramUrls: Record<string, string> = {};
 
     if (includeDiagrams) {
-      function getBestDiagramType(title: string, content: string): string {
-        const t = title.toLowerCase();
-        const text = content.toLowerCase().substring(0, 800);
-        if (/scope|overview|process|methodology|procedure|manufacturing|fabrication|production|assembly|treatment/.test(t) || /process flow|pfd|p&id|manufacturing steps|fabrication/.test(text)) return "pfd";
-        if (/schedule|timeline|delivery|milestones?|project plan|implementation/.test(t) || /week \d|phase \d|month \d|delivery schedule|lead time/.test(text)) return "gantt";
-        if (/communication|inspection|stakeholder|interface|interaction|handover/.test(t) || /submit|receive|review|approve|notify|respond/.test(text)) return "sequence";
-        return "flowchart";
-      }
-
       for (const section of proposal.sections) {
         try {
-          const diagramType = getBestDiagramType(section.sectionTitle, section.content);
-          const diagramTypeMap: Record<string, string> = {
-            flowchart: "a flowchart (graph TD) showing the process flow, decision points, and key steps",
-            sequence: "a sequence diagram showing interactions between stakeholders, systems, or departments",
-            gantt: "a Gantt chart showing the project timeline, milestones, and phases",
-            pfd: "a process flow diagram (graph LR) showing the manufacturing/engineering process flow with equipment, inputs, outputs, and connections",
-          };
-          const diagramDesc = diagramTypeMap[diagramType] || diagramTypeMap.flowchart;
-
-          const systemPrompt = `You are an expert technical diagram creator. Generate valid Mermaid.js diagram code.
-Rules:
-- Output ONLY the raw Mermaid diagram code, nothing else
-- No markdown code fences, no explanation text
-- Use clear, readable labels (not too long)
-- Keep node IDs simple (A, B, C)
-- Maximum 12 nodes for readability
-- CRITICAL: NEVER use parentheses () inside node labels. Use square brackets: A["Label text"]. Replace abbreviations like "(NDT)" with " - NDT".
-- Always quote node labels with double quotes inside brackets: A["My Label"]
-- NEVER use round brackets () for node shapes.`;
-
-          const userPrompt = `Generate ${diagramDesc} for: ${section.sectionTitle}\nContent: ${section.content.substring(0, 1500)}\nGenerate the Mermaid diagram code now:`;
-
-          const llmRes = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}` },
-            body: JSON.stringify({
-              model: "gpt-4o",
-              messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-              temperature: 0.3,
-              max_tokens: 1500,
-            }),
+          const diagram = await generateVisualization({
+            title: proposal.title,
+            sectionTitle: section.sectionTitle,
+            industry: proposal.industry,
+            templateType: proposal.templateType,
+            content: section.content,
           });
-
-          if (llmRes.ok) {
-            const llmData = await llmRes.json();
-            let mermaidCode = llmData?.choices?.[0]?.message?.content ?? "";
-            mermaidCode = mermaidCode.replace(/```mermaid\n?/gi, "").replace(/```\n?/g, "").trim();
-            // Sanitize parentheses
-            mermaidCode = mermaidCode.split("\n").map((line: string) => {
-              if (/^\s*(graph|subgraph|end|style|classDef|class |linkStyle|%%)/i.test(line)) return line;
-              return line.replace(/(\[\"?)(.*?)(\"?\])/g, (_m: string, open: string, content: string, close: string) => {
-                const sanitized = content.replace(/\(/g, " - ").replace(/\)/g, "").replace(/\s+-\s+\s*/g, " - ");
-                const tOpen = open.endsWith('"') ? open : open + '"';
-                const tClose = close.startsWith('"') ? close : '"' + close;
-                return `${tOpen}${sanitized}${tClose}`;
-              });
-            }).join("\n");
-
-            if (mermaidCode) {
-              const encoded = Buffer.from(mermaidCode).toString("base64");
-              const mBase = 'https://' + 'mermaid' + '.ink';
-              const diagramUrl = mBase + '/img/' + encoded + '?type=png&width=700&height=400&bgColor=white';
-              // Validate diagram actually renders by fetching it
-              try {
-                const imgCheck = await fetch(diagramUrl, { signal: AbortSignal.timeout(8000) });
-                if (imgCheck.ok) {
-                  const buf = await imgCheck.arrayBuffer();
-                  if (buf.byteLength > 500) {
-                    sectionDiagramUrls[section.id] = diagramUrl;
-                  }
+          if (diagram.imageUrl) {
+            try {
+              const imgCheck = await fetch(diagram.imageUrl, { signal: AbortSignal.timeout(8000) });
+              if (imgCheck.ok) {
+                const buf = await imgCheck.arrayBuffer();
+                if (buf.byteLength > 500) {
+                  sectionDiagramUrls[section.id] = diagram.imageUrl;
                 }
-              } catch {
-                console.log(`Diagram validation failed for ${section.sectionTitle}, skipping`);
               }
+            } catch {
+              console.log(`Diagram validation failed for ${section.sectionTitle}, skipping`);
             }
           }
         } catch (err) {
