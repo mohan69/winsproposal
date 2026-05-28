@@ -16,6 +16,11 @@ export async function POST(request: Request) {
     if (!fileName || !contentType) {
       return NextResponse.json({ error: "fileName and contentType are required" }, { status: 400 });
     }
+    const missingAwsEnv = ["AWS_REGION", "AWS_BUCKET_NAME", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+      .filter((name) => !process.env[name]?.trim());
+    if (missingAwsEnv.length > 0) {
+      console.error("Missing AWS upload environment variables:", missingAwsEnv.join(", "));
+    }
     const result = await generatePresignedUploadUrl(fileName, contentType, isPublic ?? false);
     return NextResponse.json(result);
   } catch (error: any) {
