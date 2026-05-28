@@ -62,6 +62,12 @@ export const VISUALIZATION_TYPES: Array<{
     description: "RFP intake through technical review, approval, export, and submission.",
   },
   {
+    id: "gantt",
+    label: "Schedule",
+    exportLabel: "Project Schedule Gantt",
+    description: "Project, proposal, engineering, procurement, inspection, and submission timelines.",
+  },
+  {
     id: "engineering_dependency",
     label: "Dependencies",
     exportLabel: "Engineering Dependency Flow",

@@ -37,6 +37,7 @@ Proposal sections can generate optional diagrams for:
 - workflow diagrams
 - compliance flows
 - proposal lifecycle diagrams
+- Gantt/project schedule diagrams
 - engineering dependency flows
 
 Generated diagrams render in the proposal detail screen through:
@@ -67,6 +68,7 @@ The proposal detail page exposes a checkbox to include generated diagrams in PDF
 | Workflow | Proposal review, technical response, procurement, QA/QC workflows |
 | Compliance Flow | API/ISO compliance mapping, deviations, inspection gates |
 | Proposal Lifecycle | RFP intake through approval, export, and submission |
+| Gantt / Schedule | Proposal and project timelines, milestones, phase handoffs |
 | Engineering Dependency | Datasheets, P&IDs, drawings, vendor data, calculations |
 
 ## Demo Knowledge Assets
@@ -80,6 +82,7 @@ Demo knowledge assets are seeded as `VaultTextEntry` records for the demo user. 
 - historical proposal responses
 - technical clauses
 - API 600 examples
+- API 610 examples
 - valve technical specifications
 - pump technical specifications
 - compliance templates
@@ -106,6 +109,7 @@ New demo templates:
 - Refinery Systems Template
 - Pump Infrastructure Template
 - Industrial Automation Systems Template
+- Process Engineering Package Template
 
 These are intentionally lightweight Phase 1 templates designed for credible demos and pilot conversations.
 
@@ -122,6 +126,7 @@ They are shown on the Templates page and include sample KPI visualizations for:
 - compliance coverage
 - engineering workload
 - bid lifecycle
+- proposal reuse metrics
 
 The KPI data is static sample data for demonstration only.
 

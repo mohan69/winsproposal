@@ -94,6 +94,12 @@ async function main() {
       content: `The pump package shall be designed in accordance with API 610 / ISO 13709. The proposal shall include rated flow, rated head, efficiency, NPSHR, NPSHA margin statement, minimum continuous stable flow, preferred operating region, driver rating, seal plan per API 682, coupling, baseplate, testing scope, vibration acceptance limits, and performance guarantee conditions.`,
     },
     {
+      title: "Historical Proposal Response - API 610 Pump Package",
+      industry: "Pumps" as const,
+      tags: ["historical-response", "api-610", "pump-package", "seal-plan"],
+      content: `We confirm the offered centrifugal pump package is aligned with API 610 / ISO 13709 for refinery utility service. The scope includes pump, driver, coupling, baseplate, API 682 seal system, performance test, vibration records, material certificates, and final data book submission. Deviations from the client datasheet shall be captured in the technical deviation register with engineering justification and client approval status.`,
+    },
+    {
       title: "Compliance Template - Industrial Proposal Review",
       industry: "EPC" as const,
       tags: ["compliance-template", "proposal-review", "deviation-register"],
@@ -116,6 +122,12 @@ async function main() {
       industry: "EPC" as const,
       tags: ["automation", "fat", "sat", "scada", "plc"],
       content: `Automation proposals shall include control system architecture, PLC/SCADA scope, I/O count assumptions, panel design basis, network topology, cybersecurity boundary, cause-and-effect validation, FAT procedure, SAT procedure, commissioning support, backup strategy, and operator training plan. Deliverables include instrument index, I/O list, loop diagrams, logic narratives, and as-built documentation.`,
+    },
+    {
+      title: "Process Engineering Package Template - FEED to IFC",
+      industry: "EPC" as const,
+      tags: ["process-engineering", "feed", "ifc", "p-id", "deliverables"],
+      content: `Process engineering package development shall progress from design basis and heat/material balance through PFDs, P&IDs, equipment lists, line lists, datasheets, control narratives, HAZOP actions, interdisciplinary review, client approval, and IFC release. Proposal scope shall identify deliverable responsibility, review cycles, interface inputs, and document control requirements.`,
     },
   ];
 

@@ -38,6 +38,13 @@ export const DEMO_KNOWLEDGE_ASSETS: DemoKnowledgeAsset[] = [
     content: "The pump package shall be designed in accordance with API 610 / ISO 13709. The proposal shall include rated flow, rated head, efficiency, NPSHR, NPSHA margin statement, minimum continuous stable flow, driver rating, API 682 seal plan, and performance guarantee conditions.",
   },
   {
+    title: "Historical Proposal Response - API 610 Pump Package",
+    industry: "Pumps",
+    category: "Historical Proposal Response",
+    tags: ["historical-response", "api-610", "pump-package", "seal-plan"],
+    content: "We confirm the offered centrifugal pump package is aligned with API 610 / ISO 13709 for refinery utility service. The scope includes pump, driver, coupling, baseplate, API 682 seal system, performance test, vibration records, material certificates, and final data book submission.",
+  },
+  {
     title: "Compliance Template - Industrial Proposal Review",
     industry: "EPC",
     category: "Compliance Template",
@@ -64,5 +71,12 @@ export const DEMO_KNOWLEDGE_ASSETS: DemoKnowledgeAsset[] = [
     category: "Engineering Workflow",
     tags: ["automation", "fat", "sat", "scada", "plc"],
     content: "Automation proposals shall include control system architecture, PLC/SCADA scope, I/O count assumptions, panel design basis, network topology, cybersecurity boundary, cause-and-effect validation, FAT procedure, SAT procedure, commissioning support, backup strategy, and operator training plan.",
+  },
+  {
+    title: "Process Engineering Package Template - FEED to IFC",
+    industry: "EPC",
+    category: "Engineering Workflow",
+    tags: ["process-engineering", "feed", "ifc", "p-id", "deliverables"],
+    content: "Process engineering package development shall progress from design basis and heat/material balance through PFDs, P&IDs, equipment lists, line lists, datasheets, control narratives, HAZOP actions, interdisciplinary review, client approval, and IFC release.",
   },
 ];

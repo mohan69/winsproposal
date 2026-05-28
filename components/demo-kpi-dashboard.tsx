@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, CheckCircle2, Gauge, Users } from "lucide-react";
+import { Activity, CheckCircle2, Gauge, RefreshCcw, Users } from "lucide-react";
 
 const KPI_CARDS = [
   {
@@ -37,6 +37,14 @@ const KPI_CARDS = [
     color: "text-violet-700 bg-violet-50 border-violet-100",
     bars: [88, 72, 59, 46, 32],
   },
+  {
+    label: "Proposal Reuse",
+    value: "67%",
+    trend: "+29 pts",
+    icon: RefreshCcw,
+    color: "text-cyan-700 bg-cyan-50 border-cyan-100",
+    bars: [28, 39, 48, 57, 67],
+  },
 ];
 
 export function DemoKpiDashboard() {
@@ -52,7 +60,7 @@ export function DemoKpiDashboard() {
           </div>
           <Badge variant="outline" className="w-fit">Sample Data</Badge>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {KPI_CARDS.map((item) => {
             const Icon = item.icon;
             return (

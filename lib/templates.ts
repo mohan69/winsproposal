@@ -441,6 +441,26 @@ export const TEMPLATES: ProposalTemplate[] = [
       { id: "ia4", label: "Cybersecurity Boundary", standard: "IEC 62443 aligned controls" },
     ],
   },
+  {
+    id: "process-engineering-package",
+    name: "Process Engineering Package Template",
+    industry: "EPC",
+    badge: "Process Package",
+    description: "Demo template for process engineering proposal packages covering design basis, PFDs, P&IDs, datasheets, HAZOP actions, interfaces, and IFC deliverable control.",
+    sections: [
+      { title: "Process Design Basis", description: "Feed composition, operating cases, design codes, battery limits, assumptions, and exclusions" },
+      { title: "PFD, P&ID & Line List Workflow", description: "Process flow diagrams, piping and instrumentation diagrams, line list development, and review gates" },
+      { title: "Equipment Datasheets & Utility Summary", description: "Equipment sizing basis, datasheets, utility loads, relief cases, and package interfaces" },
+      { title: "HAZOP, Action Tracking & Compliance", description: "HAZOP inputs, action ownership, deviation handling, compliance evidence, and closeout records" },
+      { title: "IFC Deliverable & Client Approval Plan", description: "Interdisciplinary checks, client comments, revision control, and issued-for-construction release" },
+    ],
+    complianceItems: [
+      { id: "pe1", label: "Design Basis Approved", standard: "Client process design basis and project specifications" },
+      { id: "pe2", label: "P&ID Review Complete", standard: "Interdisciplinary P&ID review and comment closure" },
+      { id: "pe3", label: "HAZOP Actions Tracked", standard: "HAZOP action register and closeout workflow" },
+      { id: "pe4", label: "IFC Release Controlled", standard: "Document control and revision approval procedure" },
+    ],
+  },
 ];
 
 export function getTemplateById(id: string): ProposalTemplate | undefined {
