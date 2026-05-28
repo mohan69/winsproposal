@@ -28,10 +28,18 @@ interface Invite {
   status: string;
 }
 
+interface TeamOrganization {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  brandColor: string | null;
+  currentUserRole?: string;
+}
+
 export function TeamClient() {
   const { data: session } = useSession() || {};
-  const isAdmin = (session?.user as any)?.role === "admin";
-  const hasOrg = !!(session?.user as any)?.organizationId;
+  const sessionIsAdmin = (session?.user as any)?.role === "admin";
+  const [organization, setOrganization] = useState<TeamOrganization | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,11 +47,14 @@ export function TeamClient() {
   const [inviteRole, setInviteRole] = useState("team_member");
   const [sending, setSending] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
+  const isAdmin = sessionIsAdmin || organization?.currentUserRole === "admin";
+  const hasOrg = !!organization;
 
   const fetchTeam = useCallback(async () => {
     try {
       const res = await fetch("/api/team");
       const data = await res.json().catch(() => ({}));
+      setOrganization(data?.organization ?? null);
       setMembers(data?.members ?? []);
       setInvites(data?.invites ?? []);
     } catch { toast.error("Failed to load team"); } finally { setLoading(false); }
@@ -121,6 +132,7 @@ export function TeamClient() {
             <Users className="w-7 h-7 text-primary" /> Team
           </h1>
           <p className="text-muted-foreground mt-1">Manage your team members and invitations.</p>
+          {organization?.name && <p className="text-sm text-muted-foreground mt-1">{organization.name}</p>}
         </div>
       </div>
 

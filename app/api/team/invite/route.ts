@@ -11,13 +11,12 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const userId = (session?.user as any)?.id;
-    const role = (session?.user as any)?.role;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    if (role !== "admin") {
+    if (user?.role !== "admin") {
       return NextResponse.json({ error: "Only admins can invite team members" }, { status: 403 });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.organizationId) {
       return NextResponse.json({ error: "Create an organization first" }, { status: 400 });
     }
@@ -153,16 +152,20 @@ export async function DELETE(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const role = (session?.user as any)?.role;
-    if (role !== "admin") {
+    const userId = (session?.user as any)?.id;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== "admin") {
       return NextResponse.json({ error: "Only admins can revoke invites" }, { status: 403 });
+    }
+    if (!user?.organizationId) {
+      return NextResponse.json({ error: "Create an organization first" }, { status: 400 });
     }
 
     const { searchParams } = new URL(request?.url ?? "");
     const inviteId = searchParams?.get("id");
     if (!inviteId) return NextResponse.json({ error: "Invite ID required" }, { status: 400 });
 
-    await prisma.teamInvite.delete({ where: { id: inviteId } });
+    await prisma.teamInvite.deleteMany({ where: { id: inviteId, organizationId: user.organizationId } });
     return NextResponse.json({ message: "Invite revoked" });
   } catch (error: any) {
     console.error("Invite delete error:", error);

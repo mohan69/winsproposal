@@ -25,12 +25,12 @@ interface OrgData {
   name: string;
   logoUrl: string | null;
   brandColor: string | null;
+  currentUserRole?: string;
 }
 
 export function SettingsClient() {
-  const { data: session } = useSession() || {};
+  const { data: session, update: updateSession } = useSession() || {};
   const isAdmin = (session?.user as any)?.role === "admin";
-  const hasOrg = !!(session?.user as any)?.organizationId;
 
   const [org, setOrg] = useState<OrgData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +43,7 @@ export function SettingsClient() {
   const [orgName, setOrgName] = useState("");
   const [brandColor, setBrandColor] = useState("#1a365d");
   const [customColor, setCustomColor] = useState("");
+  const canManageOrg = isAdmin || org?.currentUserRole === "admin";
 
   useEffect(() => {
     async function loadOrg() {
@@ -72,7 +73,8 @@ export function SettingsClient() {
       const data = await res.json().catch(() => ({}));
       if (!res?.ok) throw new Error(data?.error ?? "Failed to create organization");
       setOrg(data);
-      toast.success("Organization created! Please log out and log back in to see team features.");
+      await updateSession?.();
+      toast.success("Organization created. Team and branding settings are ready.");
     } catch (err: any) {
       toast.error(err?.message ?? "Failed to create organization");
     } finally { setCreating(false); }
@@ -226,10 +228,10 @@ export function SettingsClient() {
                     value={orgName}
                     onChange={(e: any) => setOrgName(e?.target?.value ?? "")}
                     className="mt-1"
-                    disabled={!isAdmin}
+                    disabled={!canManageOrg}
                   />
                 </div>
-                {isAdmin && (
+                {canManageOrg && (
                   <Button onClick={handleSaveOrg} disabled={saving} size="sm">
                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
                     Save Changes
@@ -259,7 +261,7 @@ export function SettingsClient() {
                         <ImageIcon className="w-6 h-6 text-muted-foreground" />
                       </div>
                     )}
-                    {isAdmin && (
+                    {canManageOrg && (
                       <div>
                         <input ref={logoInputRef} type="file" accept=".jpg,.jpeg,.png,.svg,.webp" className="hidden" onChange={handleLogoUpload} />
                         <Button size="sm" variant="outline" onClick={() => logoInputRef?.current?.click?.()} disabled={uploadingLogo}>
@@ -281,14 +283,14 @@ export function SettingsClient() {
                       <button
                         key={c.value}
                         type="button"
-                        onClick={() => { if (isAdmin) setBrandColor(c.value); }}
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${brandColor === c.value ? "border-foreground scale-110 ring-2 ring-offset-2 ring-primary" : "border-transparent hover:scale-105"} ${!isAdmin ? "cursor-default" : ""}`}
+                        onClick={() => { if (canManageOrg) setBrandColor(c.value); }}
+                        className={`w-8 h-8 rounded-full border-2 transition-all ${brandColor === c.value ? "border-foreground scale-110 ring-2 ring-offset-2 ring-primary" : "border-transparent hover:scale-105"} ${!canManageOrg ? "cursor-default" : ""}`}
                         style={{ backgroundColor: c.value }}
                         title={c.name}
-                        disabled={!isAdmin}
+                        disabled={!canManageOrg}
                       />
                     ))}
-                    {isAdmin && (
+                    {canManageOrg && (
                       <Input
                         type="color"
                         value={brandColor}
@@ -304,7 +306,7 @@ export function SettingsClient() {
                   </div>
                 </div>
 
-                {isAdmin && (
+                {canManageOrg && (
                   <Button onClick={handleSaveOrg} disabled={saving} size="sm">
                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
                     Save Branding

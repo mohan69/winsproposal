@@ -11,7 +11,10 @@ export async function GET() {
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const userId = (session?.user as any)?.id;
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { organization: true },
+    });
     if (!user?.organizationId) {
       return NextResponse.json({ members: [], invites: [] });
     }
@@ -28,7 +31,17 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ members, invites });
+    return NextResponse.json({
+      organization: user.organization ? {
+        id: user.organization.id,
+        name: user.organization.name,
+        logoUrl: user.organization.logoUrl,
+        brandColor: user.organization.brandColor,
+        currentUserRole: user.role,
+      } : null,
+      members,
+      invites,
+    });
   } catch (error: any) {
     console.error("Team fetch error:", error);
     return NextResponse.json({ error: "Failed to fetch team" }, { status: 500 });

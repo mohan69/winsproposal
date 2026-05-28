@@ -46,6 +46,20 @@ export const authOptions: NextAuthOptions = {
         token.role = user?.role;
         token.companyName = user?.companyName;
         token.organizationId = user?.organizationId;
+      } else if (token?.id) {
+        try {
+          const freshUser = await prisma.user.findUnique({
+            where: { id: token.id },
+            select: { role: true, companyName: true, organizationId: true },
+          });
+          if (freshUser) {
+            token.role = freshUser.role;
+            token.companyName = freshUser.companyName;
+            token.organizationId = freshUser.organizationId;
+          }
+        } catch (error: any) {
+          console.error("Session refresh error:", error);
+        }
       }
       return token;
     },

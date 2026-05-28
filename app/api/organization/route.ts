@@ -14,7 +14,10 @@ export async function GET() {
     if (!user?.organizationId || !user?.organization) {
       return NextResponse.json(null);
     }
-    return NextResponse.json(user.organization);
+    return NextResponse.json({
+      ...user.organization,
+      currentUserRole: user.role,
+    });
   } catch (error: any) {
     console.error("Org fetch error:", error);
     return NextResponse.json({ error: "Failed to fetch organization" }, { status: 500 });
@@ -52,7 +55,7 @@ export async function POST(request: Request) {
       data: { organizationId: org.id, role: "admin" },
     });
 
-    return NextResponse.json(org, { status: 201 });
+    return NextResponse.json({ ...org, currentUserRole: "admin" }, { status: 201 });
   } catch (error: any) {
     console.error("Org create error:", error);
     return NextResponse.json({ error: "Failed to create organization" }, { status: 500 });
@@ -64,13 +67,12 @@ export async function PUT(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const userId = (session?.user as any)?.id;
-    const role = (session?.user as any)?.role;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    if (role !== "admin") {
+    if (user?.role !== "admin") {
       return NextResponse.json({ error: "Only admins can update organization settings" }, { status: 403 });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user?.organizationId) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
@@ -87,7 +89,7 @@ export async function PUT(request: Request) {
       data: updateData,
     });
 
-    return NextResponse.json(org);
+    return NextResponse.json({ ...org, currentUserRole: user.role });
   } catch (error: any) {
     console.error("Org update error:", error);
     return NextResponse.json({ error: "Failed to update organization" }, { status: 500 });
