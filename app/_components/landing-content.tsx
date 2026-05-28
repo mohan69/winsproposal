@@ -20,7 +20,6 @@ import {
   Droplets,
   HardHat,
   ShieldCheck,
-  Gauge,
   Target,
   GitBranch,
   Layers,
@@ -70,22 +69,20 @@ export function LandingContent() {
     <div className="min-h-screen">
       {/* Hero */}
       <section className="relative bg-gradient-to-br from-[#1a365d] via-[#1e3a5f] to-[#0f2440] text-white overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-emerald-400 blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-blue-400 blur-3xl" />
+        <div className="absolute inset-0 opacity-15">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.14)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.14)_1px,transparent_1px)] bg-[size:72px_72px]" />
         </div>
         <div className="max-w-[1200px] mx-auto px-4 py-24 md:py-32 relative z-10">
           <motion.div initial="hidden" animate="visible" variants={stagger} className="text-center max-w-4xl mx-auto">
             <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-sm mb-8">
               <Zap className="w-4 h-4 text-emerald-400" />
-              The Only Bid-to-Win OS That Speaks Fluent Valve, Pump &amp; EPC
+              AI-native revenue intelligence for EPC, valves, pumps, and industrial manufacturing
             </motion.div>
             <motion.h1 variants={fadeUp} className="font-display text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-6">
-              Know Whether to Bid.<br />
-              Then Win When You <span className="text-emerald-400">Do</span>.
+              Industrial Revenue Intelligence Platform
             </motion.h1>
             <motion.p variants={fadeUp} className="text-lg md:text-xl text-blue-100 mb-5 max-w-3xl mx-auto">
-              WinsProposal is the AI proposal engine built for valve, pump, and EPC companies. Go/No-Go scoring tells you which RFPs to chase. Sub-type-specific templates generate proposals with actuator specs, fugitive emissions data, NPSH analysis — not generic filler.
+              Increase proposal throughput, strengthen compliance quality, and reduce engineering effort with reusable bid intelligence, technical response automation, and operational visibility across every pursuit.
             </motion.p>
             <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-center gap-3 mb-10">
               {[
@@ -112,6 +109,20 @@ export function LandingContent() {
                   Start Free Trial
                 </Button>
               </Link>
+            </motion.div>
+            <motion.div variants={fadeUp} className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-3 text-left">
+              {[
+                { metric: "50%", label: "faster proposal turnaround" },
+                { metric: "2-3x", label: "proposal throughput" },
+                { metric: "Higher", label: "compliance coverage" },
+                { metric: "Lower", label: "engineering effort" },
+                { metric: "Reusable", label: "bid knowledge" },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+                  <div className="font-display text-2xl font-bold text-emerald-300">{item.metric}</div>
+                  <div className="mt-1 text-xs leading-snug text-blue-100">{item.label}</div>
+                </div>
+              ))}
             </motion.div>
           </motion.div>
         </div>
@@ -143,11 +154,9 @@ export function LandingContent() {
               title: "Valve Manufacturers",
               subtitle: "5 sub-types · 12-15 TBE tags each",
               points: [
-                "Gate, Globe, Ball, Butterfly, Check — each with dedicated template sections",
-                "ON/OFF valves auto-include actuator torque calculations, fugitive emission specs (ISO 15848), SIL ratings",
-                "Control valves get Cv sizing, noise prediction (IEC 60534), cavitation analysis",
-                "Fire-safe compliance (API 607/624) auto-flagged per sub-type",
-                "AI auto-generates process flow diagrams, Gantt charts, and sequence diagrams per section",
+                "Gate, Globe, Ball, Butterfly, and Check valve proposal depth",
+                "Actuator specs, ISO 15848 fugitive emissions, SIL, API 607/624 flags",
+                "Sub-type TBE tags with process visuals and execution diagrams",
               ],
             },
             {
@@ -155,11 +164,9 @@ export function LandingContent() {
               title: "Pump Manufacturers",
               subtitle: "3 sub-types · API 682 seal plans",
               points: [
-                "Centrifugal, Positive Displacement, Submersible — each with unique technical depth",
-                "Centrifugal pumps auto-include NPSH analysis, hydraulic curves, API 610 vibration limits",
-                "PD pumps get pulsation analysis, relief valve sizing, ATEX motor specs",
-                "Submersible pumps include cable sizing, thrust bearing design, sand-handling capability",
-                "Auto-generated PFDs and hydraulic flow diagrams included in every proposal",
+                "Centrifugal, positive displacement, and submersible proposal logic",
+                "NPSH analysis, hydraulic curves, API 610 limits, and API 682 seal plans",
+                "Hydraulic flow visuals and compliance mappings included in proposal output",
               ],
             },
             {
@@ -167,11 +174,9 @@ export function LandingContent() {
               title: "EPC Companies",
               subtitle: "Risk registers · Local content strategy",
               points: [
-                "Multi-discipline proposal assembly with risk registers and WBS-level scheduling",
-                "Subcontracting strategy, local content plans, OISD compliance mapping",
-                "Auto-generated project execution plans, HSE frameworks, and team composition",
-                "Vendor-neutral instrument selection with compliance cross-referencing",
-                "AI generates Gantt charts, project flow diagrams, and architecture visuals automatically",
+                "Multi-discipline assembly with risk registers and WBS-level scheduling",
+                "Subcontracting strategy, local content plans, and OISD compliance mapping",
+                "Project execution visuals, HSE frameworks, and team composition sections",
               ],
             },
           ].map((card, i) => (
@@ -274,27 +279,26 @@ export function LandingContent() {
       {/* Before/After */}
       <section className="max-w-[1200px] mx-auto px-4 py-20">
         <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="font-display text-3xl md:text-4xl font-bold tracking-tight text-center mb-12">
-          Generic AI vs. WinsProposal
+          From Manual Bid Chaos to Measurable Proposal Operations
         </motion.h2>
         <div className="grid md:grid-cols-2 gap-8">
           <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}>
-            <Card className="h-full border-destructive/20 bg-red-50/50 shadow-md">
+            <Card className="h-full border-slate-200 bg-slate-50 shadow-md">
               <CardContent className="p-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <XCircle className="w-5 h-5 text-destructive" />
-                  <h3 className="font-display text-lg font-semibold text-destructive">Generic AI / Manual Process</h3>
+                  <XCircle className="w-5 h-5 text-slate-500" />
+                  <h3 className="font-display text-lg font-semibold text-slate-700">Before</h3>
                 </div>
                 <ul className="space-y-3">
                   {[
-                    "Same template for Gate, Globe, Ball, Butterfly — no sub-type awareness",
-                    "No idea whether the RFP is even worth bidding on",
-                    "5-6 generic TBE tags that miss critical evaluation criteria",
-                    "No actuator specs, no fugitive emissions, no NPSH analysis",
-                    "No diagrams — evaluators get walls of text, no visuals",
-                    "3-5 days per proposal, manual copy-paste from old docs",
+                    "Excel compliance sheets maintained outside the proposal process",
+                    "Copy-paste proposals assembled from scattered prior documents",
+                    "Disconnected engineering responses with limited reuse",
+                    "Manual bid/no-bid decisions without objective scoring",
+                    "No executive proposal visibility across pipeline, quality, or effort",
                   ].map((item, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                      <XCircle className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                       {item}
                     </li>
                   ))}
@@ -311,12 +315,11 @@ export function LandingContent() {
                 </div>
                 <ul className="space-y-3">
                   {[
-                    "Dedicated templates for each valve & pump sub-type with unique technical sections",
-                    "Go/No-Go matrix scores every RFP — Bid, No-Bid, or Conditional with risk flags",
-                    "12-15 TBE tags per sub-type mapped to actual EPC evaluation criteria",
-                    "Auto-generates actuator torque calcs, ISO 15848 compliance, SIL ratings, API 682 seal plans",
-                    "AI-generated PFDs, Gantt charts, and flowcharts embedded in every section",
-                    "Under 1 hour per proposal, AI-scored quality with technical depth metrics",
+                    "AI-generated compliance matrix mapped to RFP clauses and TBE criteria",
+                    "Reusable proposal intelligence drawn from approved technical content",
+                    "AI-assisted diagrams, PFDs, project visuals, and engineering workflows",
+                    "Executive bid dashboards for pipeline, value, turnaround, and reuse",
+                    "Measurable proposal KPIs tied to compliance coverage and engineering effort",
                   ].map((item, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-foreground">
                       <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -326,6 +329,195 @@ export function LandingContent() {
                 </ul>
               </CardContent>
             </Card>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Technical Visualization */}
+      <section className="bg-muted/30">
+        <div className="max-w-[1200px] mx-auto px-4 py-20">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid lg:grid-cols-[0.9fr_1.1fr] gap-10 items-center">
+            <div>
+              <motion.div variants={fadeUp} className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary mb-4">
+                <PenTool className="w-3.5 h-3.5" />
+                Engineering proposal intelligence
+              </motion.div>
+              <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">AI-Assisted Technical Visualization</motion.h2>
+              <motion.p variants={fadeUp} className="text-muted-foreground leading-relaxed mb-6">
+                Turn proposal logic into clear engineering visuals for evaluators, reviewers, and executive stakeholders. WinsProposal helps teams explain technical scope, compliance flow, and execution plans without leaving the bid workflow.
+              </motion.p>
+              <motion.div variants={fadeUp} className="grid sm:grid-cols-2 gap-3">
+                {[
+                  "Process flow diagrams",
+                  "Architecture diagrams",
+                  "Proposal workflows",
+                  "Engineering visuals",
+                  "Gantt/project execution visuals",
+                  "Compliance flow diagrams",
+                ].map((item) => (
+                  <div key={item} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    {item}
+                  </div>
+                ))}
+              </motion.div>
+            </div>
+            <motion.div variants={fadeUp} className="rounded-xl border bg-background p-5 shadow-md">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Technical visual set</p>
+                  <h3 className="font-display text-lg font-semibold">Produced from proposal context</h3>
+                </div>
+                <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">AI-assisted</Badge>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4 pt-5">
+                <div className="rounded-lg border bg-slate-50 p-4">
+                  <div className="mb-4 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>PFD: Valve skid scope</span>
+                    <span>API 600</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-10 w-24 rounded bg-white border flex items-center justify-center text-[10px] font-medium">Inlet Header</div>
+                      <div className="h-px flex-1 bg-slate-300" />
+                      <div className="h-10 w-24 rounded bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[10px] font-medium">Gate Valve</div>
+                    </div>
+                    <div className="ml-auto mr-10 h-8 w-px bg-slate-300" />
+                    <div className="flex items-center gap-2">
+                      <div className="h-10 w-24 rounded bg-white border flex items-center justify-center text-[10px] font-medium">Actuator</div>
+                      <div className="h-px flex-1 bg-slate-300" />
+                      <div className="h-10 w-24 rounded bg-white border flex items-center justify-center text-[10px] font-medium">Outlet</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-slate-50 p-4">
+                  <div className="mb-4 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Execution view</span>
+                    <span>12 weeks</span>
+                  </div>
+                  {[
+                    { label: "Engineering", width: "75%" },
+                    { label: "Procurement", width: "62%" },
+                    { label: "Assembly", width: "48%" },
+                    { label: "Testing", width: "34%" },
+                  ].map((row) => (
+                    <div key={row.label} className="mb-3 grid grid-cols-[88px_1fr] items-center gap-3">
+                      <span className="text-[10px] text-muted-foreground">{row.label}</span>
+                      <div className="h-2 rounded-full bg-slate-200">
+                        <div className="h-full rounded-full bg-primary" style={{ width: row.width }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Knowledge Vault */}
+      <section className="max-w-[1200px] mx-auto px-4 py-20">
+        <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="text-center mb-12">
+          <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Enterprise Knowledge Preservation</motion.h2>
+          <motion.p variants={fadeUp} className="text-muted-foreground max-w-2xl mx-auto">
+            Capture the bid knowledge that usually stays trapped in inboxes, spreadsheets, and senior engineers' memory, then reuse it safely across future pursuits.
+          </motion.p>
+        </motion.div>
+        <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid md:grid-cols-5 gap-4">
+          {[
+            { title: "Reusable proposal responses", desc: "Approved answers for recurring commercial and technical clauses." },
+            { title: "Historical bid knowledge", desc: "Past pursuit decisions, technical positions, and win/loss context." },
+            { title: "Technical clause library", desc: "API, TBE, actuator, seal plan, NPSH, and compliance language." },
+            { title: "Compliance templates", desc: "Structured matrices that map RFP clauses to response evidence." },
+            { title: "Engineering response reuse", desc: "Reduce repeated SME effort while preserving review control." },
+          ].map((item, i) => (
+            <motion.div key={item.title} variants={fadeUp}>
+              <Card className="h-full border-0 shadow-md">
+                <CardContent className="p-5">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Layers className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="font-display text-sm font-semibold mb-2">{item.title}</h3>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{item.desc}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* Executive Dashboard */}
+      <section className="bg-muted/30">
+        <div className="max-w-[1200px] mx-auto px-4 py-20">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid lg:grid-cols-[0.85fr_1.15fr] gap-10 items-center">
+            <div>
+              <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Executive Proposal Dashboard</motion.h2>
+              <motion.p variants={fadeUp} className="text-muted-foreground leading-relaxed mb-6">
+                Give leadership a clean operating view of proposal pipeline, bid value, turnaround, compliance coverage, reuse, and engineering hours saved.
+              </motion.p>
+              <motion.div variants={fadeUp} className="flex flex-wrap gap-2">
+                {["Pipeline", "Bid value", "Turnaround", "Compliance", "Reuse", "Engineering effort"].map((tag) => (
+                  <Badge key={tag} variant="outline" className="bg-background">{tag}</Badge>
+                ))}
+              </motion.div>
+            </div>
+            <motion.div variants={fadeUp} className="rounded-xl border bg-background p-5 shadow-lg">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Enterprise KPI view</p>
+                  <h3 className="font-display text-lg font-semibold">Proposal operations</h3>
+                </div>
+                <Badge className="bg-primary text-primary-foreground">Q2 pipeline</Badge>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-3 mb-5">
+                {[
+                  { label: "Proposal pipeline", value: "34", sub: "active pursuits" },
+                  { label: "Bid value", value: "$42M", sub: "qualified" },
+                  { label: "Turnaround", value: "1.8d", sub: "median cycle" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-lg border bg-slate-50 p-4">
+                    <div className="text-xs text-muted-foreground">{item.label}</div>
+                    <div className="mt-1 font-display text-2xl font-bold">{item.value}</div>
+                    <div className="text-[11px] text-emerald-700">{item.sub}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="rounded-lg border p-4">
+                  {[
+                    { label: "Compliance coverage", value: "91%" },
+                    { label: "Proposal reuse", value: "46%" },
+                    { label: "Engineering hours saved", value: "310h" },
+                  ].map((row) => (
+                    <div key={row.label} className="mb-4 last:mb-0">
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{row.label}</span>
+                        <span className="font-semibold">{row.value}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-emerald-500" style={{ width: row.value.endsWith("%") ? row.value : "78%" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-lg border p-4">
+                  <div className="mb-3 text-xs font-semibold text-muted-foreground">Bid mix by workflow</div>
+                  {[
+                    { label: "EPC packages", value: "38%", color: "bg-primary" },
+                    { label: "Valve proposals", value: "34%", color: "bg-emerald-500" },
+                    { label: "Pump proposals", value: "28%", color: "bg-amber-500" },
+                  ].map((row) => (
+                    <div key={row.label} className="mb-3 grid grid-cols-[96px_1fr_36px] items-center gap-2 text-xs">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <div className="h-2 rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${row.color}`} style={{ width: row.value }} />
+                      </div>
+                      <span className="text-right font-semibold">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         </div>
       </section>
@@ -373,10 +565,10 @@ export function LandingContent() {
           </motion.p>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid md:grid-cols-4 gap-8">
             {[
-              { icon: Clock, value: 70, suffix: "%", label: "Faster Proposals", sub: "From 3-5 days to under 1 hour" },
-              { icon: BarChart3, value: 3, suffix: "x", label: "More RFPs Handled", sub: "Same team, 3x the bid volume" },
-              { icon: TrendingUp, value: 40, suffix: "%", label: "Higher Win Rates", sub: "Technical depth = evaluator confidence" },
-              { icon: ShieldCheck, value: 15, suffix: "+", label: "TBE Tags / Sub-Type", sub: "vs 5-6 from generic tools" },
+              { icon: Clock, value: 50, suffix: "%", label: "Faster Turnaround", sub: "Shorter proposal cycles with AI-assisted drafting" },
+              { icon: BarChart3, value: 3, suffix: "x", label: "Proposal Throughput", sub: "Handle more qualified bids with the same team" },
+              { icon: TrendingUp, value: 46, suffix: "%", label: "Proposal Reuse", sub: "Approved technical answers reused across pursuits" },
+              { icon: ShieldCheck, value: 15, suffix: "+", label: "TBE Tags / Sub-Type", sub: "Technical criteria for valves, pumps, and EPC workflows" },
             ].map((item, i) => (
               <motion.div key={i} variants={fadeUp} className="text-center">
                 <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mx-auto mb-4">
