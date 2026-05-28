@@ -48,9 +48,12 @@ Required S3 variables:
 ```bash
 AWS_REGION=
 AWS_BUCKET_NAME=
+S3_BUCKET_NAME=
 AWS_FOLDER_PREFIX=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
 ```
 
 ## 4. Configure Vercel
@@ -73,9 +76,12 @@ NEXTAUTH_URL=https://winsproposal.com
 NEXTAUTH_SECRET=
 AWS_REGION=
 AWS_BUCKET_NAME=
+S3_BUCKET_NAME=
 AWS_FOLDER_PREFIX=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
 ```
 
 Current app features also still call Abacus-hosted AI/PDF/email endpoints. Keep these variables populated until those integrations are replaced:

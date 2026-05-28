@@ -15,7 +15,7 @@ npm run verify:production -- https://winsproposal-31a25dfh4-mohans-projects-1e34
 
 ## Before DNS Cutover
 
-- Confirm `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are added to Vercel production env vars.
+- Confirm `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` are added to Vercel production env vars.
 - Confirm S3 CORS allows `https://winsproposal.com`.
 - Add `winsproposal.com` and `www.winsproposal.com` to the Vercel project.
 - Confirm Vercel Authentication remains disabled for production/public access.

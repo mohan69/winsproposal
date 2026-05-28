@@ -11,7 +11,7 @@
 - `npm ci` currently reports 17 dependency vulnerabilities. These were not remediated in this migration-prep pass because dependency upgrades can change runtime behavior and should be handled as a separate hardening task.
 - Prisma 6.7 generates the client to the default `node_modules/@prisma/client` path. Prisma warns this default will change in Prisma 7; keep Prisma pinned or plan an explicit output path upgrade later.
 - S3 credentials in Vercel should use least-privilege IAM permissions scoped to the production bucket and prefix.
-- Vercel cannot use a local `AWS_PROFILE`; production uploads require `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` or an equivalent Vercel-supported AWS credential path.
+- Vercel cannot use a local `AWS_PROFILE`; production uploads require IAM credentials. Prefer `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` in Vercel to avoid runtime-reserved `AWS_*` credential names.
 - `NEXTAUTH_SECRET` must be stable across deployments. Rotating it will invalidate sessions.
 - DNS cutover for `winsproposal.com` can take time. Keep the old deployment available until Vercel is verified.
 

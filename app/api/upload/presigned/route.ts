@@ -16,8 +16,12 @@ export async function POST(request: Request) {
     if (!fileName || !contentType) {
       return NextResponse.json({ error: "fileName and contentType are required" }, { status: 400 });
     }
-    const missingAwsEnv = ["AWS_REGION", "AWS_BUCKET_NAME", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-      .filter((name) => !process.env[name]?.trim());
+    const missingAwsEnv = [
+      !process.env.AWS_REGION?.trim() ? "AWS_REGION" : "",
+      !(process.env.S3_BUCKET_NAME?.trim() || process.env.AWS_BUCKET_NAME?.trim()) ? "S3_BUCKET_NAME or AWS_BUCKET_NAME" : "",
+      !(process.env.S3_ACCESS_KEY_ID?.trim() || process.env.AWS_ACCESS_KEY_ID?.trim()) ? "S3_ACCESS_KEY_ID or AWS_ACCESS_KEY_ID" : "",
+      !(process.env.S3_SECRET_ACCESS_KEY?.trim() || process.env.AWS_SECRET_ACCESS_KEY?.trim()) ? "S3_SECRET_ACCESS_KEY or AWS_SECRET_ACCESS_KEY" : "",
+    ].filter(Boolean);
     if (missingAwsEnv.length > 0) {
       console.error("Missing AWS upload environment variables:", missingAwsEnv.join(", "));
     }
