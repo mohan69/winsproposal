@@ -113,15 +113,18 @@ export function VaultClient() {
       const presignedData = await presignedRes.json().catch(() => ({}));
       if (!presignedRes?.ok) throw new Error(presignedData?.error ?? "Failed to get upload URL");
 
-      // Upload to S3
-      const uploadUrl = presignedData?.uploadUrl ?? "";
-      const cloud_storage_path = presignedData?.cloud_storage_path ?? "";
-      const uploadHeaders: Record<string, string> = { "Content-Type": file.type || "application/octet-stream" };
+        // Upload directly to cloud storage
+        const uploadUrl = presignedData?.uploadUrl ?? "";
+        const cloud_storage_path = presignedData?.cloud_storage_path ?? "";
+        const uploadHeaders: Record<string, string> = {
+          "Content-Type": file.type || "application/octet-stream",
+          ...(presignedData?.uploadHeaders ?? {}),
+        };
       if (uploadUrl?.includes("content-disposition")) {
         uploadHeaders["Content-Disposition"] = "attachment";
       }
-      const s3Res = await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
-      if (!s3Res?.ok) throw new Error("Failed to upload file to storage");
+      const storageRes = await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
+      if (!storageRes?.ok) throw new Error("Failed to upload file to storage");
 
       // Create vault document record
       const createRes = await fetch("/api/vault", {

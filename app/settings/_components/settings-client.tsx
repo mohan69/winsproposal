@@ -119,14 +119,17 @@ export function SettingsClient() {
       const presignedData = await presignedRes.json().catch(() => ({}));
       if (!presignedRes?.ok) throw new Error("Failed to get upload URL");
 
-      const uploadUrl = presignedData?.uploadUrl ?? "";
-      const cloudPath = presignedData?.cloud_storage_path ?? "";
-      const uploadHeaders: Record<string, string> = { "Content-Type": file.type };
+        const uploadUrl = presignedData?.uploadUrl ?? "";
+        const cloudPath = presignedData?.cloud_storage_path ?? "";
+        const uploadHeaders: Record<string, string> = {
+          "Content-Type": file.type,
+          ...(presignedData?.uploadHeaders ?? {}),
+        };
       if (uploadUrl?.includes("content-disposition")) {
         uploadHeaders["Content-Disposition"] = "attachment";
       }
-      const s3Res = await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
-      if (!s3Res?.ok) throw new Error("Failed to upload logo");
+      const storageRes = await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
+      if (!storageRes?.ok) throw new Error("Failed to upload logo");
 
       // Get public URL
       const publicUrl = presignedData?.publicUrl || uploadUrl.split("?")[0];

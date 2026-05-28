@@ -32,13 +32,11 @@ www.winsproposal.com  -> 66.71.220.1
   - `DATABASE_URL`
   - `NEXTAUTH_URL=https://winsproposal.com`
   - `NEXTAUTH_SECRET`
-  - `AWS_REGION`
-  - `AWS_BUCKET_NAME`
-  - `AWS_FOLDER_PREFIX`
-  - `AWS_ACCESS_KEY_ID`
-  - `AWS_SECRET_ACCESS_KEY`
+  - `AZURE_STORAGE_CONNECTION_STRING`
+  - `AZURE_STORAGE_CONTAINER_NAME`
+  - `AZURE_STORAGE_ACCOUNT_NAME`
   - transitional Abacus vars while those runtime dependencies remain
-- AWS S3 bucket CORS allows `https://winsproposal.com`.
+- Azure Blob CORS allows `https://winsproposal.com` and `https://www.winsproposal.com`.
 - A rollback owner is available during cutover.
 - DNS TTL is lowered before cutover if the DNS provider supports it.
 
@@ -84,7 +82,7 @@ Manual smoke checks:
 - Open `https://winsproposal.com`.
 - Sign up or sign in.
 - Confirm dashboard/proposals routes load after auth.
-- Upload a small RFP and confirm S3 upload succeeds.
+- Upload a small RFP and confirm Azure Blob upload succeeds.
 - Generate or parse a proposal only after confirming transitional AI credentials are present.
 - Export PDF and DOCX.
 - Confirm no Vercel Authentication page appears.

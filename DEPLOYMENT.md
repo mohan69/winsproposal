@@ -5,7 +5,7 @@ This app is prepared for deployment outside Abacus with:
 - GitHub as source control
 - Vercel for Next.js hosting
 - Neon Postgres for the production database
-- AWS S3 for uploaded RFP and vault files
+- Azure Blob Storage for uploaded RFP and vault files
 - `winsproposal.com` as the production domain
 
 ## 1. Push To GitHub
@@ -34,26 +34,22 @@ Use a fresh production database unless there is confirmed customer/proposal data
 
 The Prisma datasource already reads `DATABASE_URL` from the environment.
 
-## 3. Configure AWS S3
+## 3. Configure Azure Blob Storage
 
-1. Create a private S3 bucket, for example `winsproposal-production`.
-2. Enable CORS for browser uploads from:
+1. Create a storage account and blob container, for example `winsproposal-production`.
+2. Enable Blob CORS for browser uploads from:
    - `https://winsproposal.com`
    - Vercel preview URLs, if previews need uploads
-3. Create an IAM user or role with minimum permissions for object read, write, delete, and multipart upload on the bucket prefix used by the app.
-4. Store the AWS values in Vercel environment variables.
+3. Allow `PUT`, `GET`, `HEAD`, and `OPTIONS`.
+4. Allow headers `content-type`, `x-ms-blob-type`, and `content-disposition`.
+5. Store the Azure values in Vercel environment variables.
 
-Required S3 variables:
+Required Azure variables:
 
 ```bash
-AWS_REGION=
-AWS_BUCKET_NAME=
-S3_BUCKET_NAME=
-AWS_FOLDER_PREFIX=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
+AZURE_STORAGE_CONNECTION_STRING=
+AZURE_STORAGE_CONTAINER_NAME=
+AZURE_STORAGE_ACCOUNT_NAME=
 ```
 
 ## 4. Configure Vercel
@@ -74,14 +70,9 @@ Minimum required production variables:
 DATABASE_URL=
 NEXTAUTH_URL=https://winsproposal.com
 NEXTAUTH_SECRET=
-AWS_REGION=
-AWS_BUCKET_NAME=
-S3_BUCKET_NAME=
-AWS_FOLDER_PREFIX=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-S3_ACCESS_KEY_ID=
-S3_SECRET_ACCESS_KEY=
+AZURE_STORAGE_CONNECTION_STRING=
+AZURE_STORAGE_CONTAINER_NAME=
+AZURE_STORAGE_ACCOUNT_NAME=
 ```
 
 Current app features also still call Abacus-hosted AI/PDF/email endpoints. Keep these variables populated until those integrations are replaced:
@@ -124,7 +115,7 @@ npm run verify:production -- https://winsproposal.com
 Also smoke test:
 
 - Sign up or sign in.
-- Upload an RFP to S3.
+- Upload an RFP to Azure Blob Storage.
 - Parse the RFP.
 - Generate a proposal.
 - Edit a proposal section.

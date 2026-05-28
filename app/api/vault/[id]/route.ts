@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
-import { deleteFile } from "@/lib/s3";
+import { deleteFile } from "@/lib/storage";
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {

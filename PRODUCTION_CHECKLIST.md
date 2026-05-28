@@ -15,8 +15,8 @@ npm run verify:production -- https://winsproposal-31a25dfh4-mohans-projects-1e34
 
 ## Before DNS Cutover
 
-- Confirm `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` are added to Vercel production env vars.
-- Confirm S3 CORS allows `https://winsproposal.com`.
+- Confirm `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_CONTAINER_NAME`, and `AZURE_STORAGE_ACCOUNT_NAME` are added to Vercel production env vars.
+- Confirm Azure Blob CORS allows `https://winsproposal.com` and `https://www.winsproposal.com`.
 - Add `winsproposal.com` and `www.winsproposal.com` to the Vercel project.
 - Confirm Vercel Authentication remains disabled for production/public access.
 - Confirm `NEXTAUTH_URL` is `https://winsproposal.com`.

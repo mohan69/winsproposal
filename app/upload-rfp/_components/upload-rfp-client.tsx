@@ -58,10 +58,13 @@ export function UploadRfpClient() {
       const presignedData = await presignedRes.json().catch(() => ({}));
       if (!presignedRes?.ok) throw new Error(presignedData?.error ?? "Failed to get upload URL");
 
-      // Upload to S3
-      const uploadUrl = presignedData?.uploadUrl ?? "";
-      const cloud_storage_path = presignedData?.cloud_storage_path ?? "";
-      const uploadHeaders: Record<string, string> = { "Content-Type": file.type || "application/octet-stream" };
+        // Upload directly to cloud storage
+        const uploadUrl = presignedData?.uploadUrl ?? "";
+        const cloud_storage_path = presignedData?.cloud_storage_path ?? "";
+        const uploadHeaders: Record<string, string> = {
+          "Content-Type": file.type || "application/octet-stream",
+          ...(presignedData?.uploadHeaders ?? {}),
+        };
       if (uploadUrl?.includes("content-disposition")) {
         uploadHeaders["Content-Disposition"] = "attachment";
       }
