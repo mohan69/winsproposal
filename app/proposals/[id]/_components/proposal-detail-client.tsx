@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { TbePanel } from "./tbe-panel";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
-import { VISUALIZATION_TYPES, getBestVisualizationType, getVisualizationTypeMeta, type VisualizationType } from "@/lib/visualization-service";
+import { VISUALIZATION_TYPES, getBestVisualizationType, getFallbackVisualization, getVisualizationTypeMeta, type VisualizationType } from "@/lib/visualization-service";
 
 interface ComplianceItem {
   id: string;
@@ -314,6 +314,10 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
 
   const vaultSections = proposal?.sections?.filter((s: ProposalSection) => s?.sourceType === "vault") ?? [];
   const checkedCount = checklistItems.filter((i) => i.checked).length;
+  const metadataParts = (proposal?.templateType ?? "").split("|").map((part) => part.trim());
+  const displayTemplate = metadataParts[0] || proposal?.templateType || "General";
+  const displayApplication = metadataParts.find((part) => part.toLowerCase().startsWith("application:"))?.replace(/^application:\s*/i, "");
+  const displayIndustry = metadataParts.find((part) => part.toLowerCase().startsWith("industry:"))?.replace(/^industry:\s*/i, "") || proposal?.industry;
 
   return (
     <div className="p-4 md:p-8 max-w-[1200px] mx-auto">
@@ -329,13 +333,14 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
             <Badge variant={proposal?.status === "Final" ? "default" : "secondary"}>
               {proposal?.status}
             </Badge>
-            <Badge variant="outline">{proposal?.industry}</Badge>
+            <Badge variant="outline">Industry: {displayIndustry}</Badge>
+            {displayApplication && <Badge variant="outline">Application: {displayApplication}</Badge>}
             {proposal?.companySize && (
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                 {({ startup: "Startup", sme: "SME", mid_market: "Mid-Market", enterprise: "Enterprise", conglomerate: "Conglomerate" } as Record<string, string>)[proposal.companySize] ?? proposal.companySize}
               </Badge>
             )}
-            <span className="text-sm text-muted-foreground">{proposal?.templateType} template</span>
+            <span className="text-sm text-muted-foreground">Template: {displayTemplate}</span>
             <span className="text-sm text-muted-foreground flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               {new Date(proposal?.createdAt ?? "").toLocaleDateString()}
@@ -580,7 +585,6 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
               industry: proposal?.industry,
             });
             const activeVisualizationType = diagrams[section?.id]?.type ?? defaultVisualizationType;
-            const defaultVisualizationLabel = getVisualizationTypeMeta(defaultVisualizationType).label;
 
             return (
           <Card key={section?.id} className="shadow-sm">
@@ -630,7 +634,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
               {/* Diagram generation */}
               <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">
-                  {diagrams[section?.id] ? "Regenerate diagram:" : `Default: ${defaultVisualizationLabel}`}
+                  Visualization: {getVisualizationTypeMeta(activeVisualizationType).label}
                 </span>
                 {VISUALIZATION_TYPES.map((type) => (
                   <Button
@@ -652,15 +656,28 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 ))}
               </div>
 
-              {/* Render diagram if exists */}
-              {diagrams[section?.id] && (
-                <div className="mt-3">
-                  <MermaidDiagram
-                    chart={diagrams[section.id].code}
-                    title={`${diagrams[section.id].title} — Diagram`}
-                  />
-                </div>
-              )}
+              <div className="mt-3">
+                {(() => {
+                  const fallback = getFallbackVisualization({
+                    title: proposal.title,
+                    sectionTitle: section.sectionTitle,
+                    industry: proposal.industry,
+                    templateType: proposal.templateType,
+                    content: section.content,
+                  }, defaultVisualizationType);
+                  const activeDiagram = diagrams[section.id] ?? {
+                    code: fallback.mermaidCode,
+                    title: fallback.title,
+                    type: defaultVisualizationType,
+                  };
+                  return (
+                    <MermaidDiagram
+                      chart={activeDiagram.code}
+                      title={`${activeDiagram.title} — ${getVisualizationTypeMeta(activeDiagram.type ?? defaultVisualizationType).exportLabel}`}
+                    />
+                  );
+                })()}
+              </div>
             </CardContent>
           </Card>
             );

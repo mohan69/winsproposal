@@ -5,6 +5,156 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { TEMPLATES, getFullTemplateWithSubType } from "@/lib/templates";
 
+const SEVERE_SERVICE_DISCLAIMER =
+  "Preliminary proposal-stage engineering estimate. Final sizing/design must be validated by qualified engineers using company-approved tools and standards.";
+
+type TemplateInference = {
+  isSevereServiceValve: boolean;
+  industryLabel: string;
+  templateName: string;
+  application: string;
+  confidence: "high" | "medium" | "low";
+  keywords: string[];
+};
+
+const severeServiceSections = [
+  ["Executive Summary", "Management-ready summary of the opportunity, proposed severe-service response, bid value drivers, and proposal confidence."],
+  ["Project Background / Opportunity Context", "Customer/project context, LNG/refinery/hydrogen/steam service background, operational reliability drivers, and proposal objective."],
+  ["Scope of Supply / Line Items", "Tag-wise package scope, quantities, line items, accessories, documentation scope, and exclusions/assumptions."],
+  ["Process Conditions / Service Conditions", "Extracted process conditions, operating envelope, fluid/service, pressure, temperature, flow cases, leakage class, and missing data."],
+  ["Technical Approach / Engineering Basis", "Engineering basis, severe-service application classification, dependency map, standards awareness, and review workflow."],
+  ["Preliminary Engineering Calculation Summary", "Process inputs, assumptions, pressure drop severity, indicative Cv/Kv placeholder if safe, risk flags, standards awareness, and validation checklist."],
+  ["Valve Configuration / Trim / Actuator / Accessories", "Preliminary valve style, severe-service trim narrative, actuator sizing considerations, accessories, fail action, and control philosophy."],
+  ["Compliance Matrix", "Clause-by-clause compliance summary covering sizing, ASME, NACE where applicable, inspection, testing, documentation, and customer requirements."],
+  ["Inspection and Testing Plan", "ITP, hydrotest, seat leakage, functional stroke, PMI, NDE, accessory checks, witness points, and final inspection."],
+  ["Quality Assurance / QA-QC", "QMS, material traceability, MDR/data book, review gates, certificate control, deviation approval, and final release governance."],
+  ["Documentation & Deliverables", "Datasheets, GA drawings, ITP/QAP, MTCs, test certificates, calculation summary, deviation register, O&M manuals, and export deliverables."],
+  ["Technical Deviations / Clarifications", "Open clarifications, possible deviations, missing data, assumptions, commercial/schedule impacts, and approval path."],
+  ["Risk Assessment", "Severe-service risk register covering cavitation/flashing/choked-flow, noise/vibration, materials, actuator response, schedule, and compliance risks."],
+  ["TBE / Technical Evaluation Summary", "Technical bid evaluation response summary across material, trim, pressure class, actuator, accessories, testing, inspection, documentation, deviations, and engineering comments."],
+  ["Project Timeline & Delivery", "Proposal and execution timeline, drawing review, procurement, manufacturing, inspection, testing, dispatch, and delivery assumptions."],
+  ["Executive Dashboard Snapshot", "Demo KPI snapshot for management: bid value, active RFP, turnaround reduction, reuse, compliance coverage, hours saved, TBE completion, approval time, risk score, and win probability."],
+] as const;
+
+function flattenExtractedData(extractedData: any) {
+  return [
+    extractedData?.title,
+    extractedData?.summary,
+    extractedData?.industry,
+    JSON.stringify(extractedData?.processConditions ?? {}),
+    JSON.stringify(extractedData?.requirements ?? []),
+    JSON.stringify(extractedData?.lineItems ?? []),
+    JSON.stringify(extractedData?.complianceRequirements ?? []),
+    JSON.stringify(extractedData?.technicalSpecifications ?? []),
+    JSON.stringify(extractedData?.engineeringReviewPoints ?? []),
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function inferProposalTemplate(extractedData: any): TemplateInference {
+  const text = flattenExtractedData(extractedData);
+  const hits: string[] = [];
+  const addHit = (pattern: RegExp, label: string) => {
+    if (pattern.test(text)) hits.push(label);
+  };
+
+  addHit(/severe[-\s]?service|high[-\s]?differential|high[-\s]?pressure drop|letdown|choked|cavitation|flashing|noise|vibration|anti[-\s]?surge|compressor recycle|steam conditioning|hydrogen|nace|iec 60534|isa 75\.01|control valve|trim|actuator/, "severe-service-control-valve");
+  addHit(/lng|compressor recycle|anti[-\s]?surge|recycle valve|fast[-\s]?acting|compressor trip/, "lng-compressor-recycle");
+  addHit(/refinery|cavitation|flashing|sour|nace|erosion|corrosion/, "refinery-severe-service");
+  addHit(/hydrogen|h2|embrittlement|high-integrity sealing|leakage class|traceability/, "hydrogen-control-valve");
+  addHit(/steam conditioning|desuperheat|spray water|superheated steam|thermal cycling/, "steam-conditioning");
+
+  let application = "Severe-Service Control Valve";
+  if (hits.includes("lng-compressor-recycle")) application = "LNG Compressor Recycle / Anti-Surge";
+  else if (hits.includes("refinery-severe-service")) application = "Refinery Severe-Service Control Valve";
+  else if (hits.includes("hydrogen-control-valve")) application = "Hydrogen Process Control Valve";
+  else if (hits.includes("steam-conditioning")) application = "Steam Conditioning";
+
+  const isSevereServiceValve = hits.length > 0 || /valve|trim|actuator|asme b16\.34|isa 75\.01|iec 60534/.test(text);
+  return {
+    isSevereServiceValve,
+    industryLabel: isSevereServiceValve ? "Severe-Service Control Valves" : (extractedData?.industry ?? "General"),
+    templateName: isSevereServiceValve ? "Severe-Service Control Valve Proposal" : "General Proposal",
+    application,
+    confidence: hits.length >= 2 ? "high" : hits.length === 1 ? "medium" : "low",
+    keywords: hits,
+  };
+}
+
+function formatSectionInstructions(inference: TemplateInference, fallback: string) {
+  if (!inference.isSevereServiceValve) return fallback;
+  return `Use this severe-service control valve proposal section structure. Generate every listed section as a separate JSON entry. Use the RFP content dynamically; do not write generic filler.\n${severeServiceSections
+    .map(([title, description], index) => `${index + 1}. ${title} — ${description}`)
+    .join("\n")}`;
+}
+
+function normalizeText(value: string) {
+  return (value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function selectRelevantVaultItems(items: any[], inference: TemplateInference, extractedData: any, limit: number) {
+  const rfpText = normalizeText(flattenExtractedData(extractedData));
+  const priorityTerms = [
+    ...inference.keywords,
+    "severe service",
+    "control valve",
+    "compressor recycle",
+    "anti surge",
+    "trim",
+    "actuator",
+    "inspection",
+    "testing",
+    "compliance",
+    "deviation",
+    "documentation",
+    "nace",
+    "noise",
+    "cavitation",
+    "flashing",
+    "steam",
+    "hydrogen",
+  ].map(normalizeText).filter(Boolean);
+
+  return items
+    .map((item) => {
+      const haystack = normalizeText(`${item.title ?? item.sectionTitle ?? ""} ${item.content ?? ""} ${(item.tags ?? []).join(" ")}`);
+      let score = 0;
+      for (const term of priorityTerms) if (term && haystack.includes(term)) score += 5;
+      for (const word of rfpText.split(" ").filter((w) => w.length > 5).slice(0, 80)) {
+        if (haystack.includes(word)) score += 1;
+      }
+      return { ...item, relevanceScore: score };
+    })
+    .filter((item) => item.relevanceScore > 0)
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, limit);
+}
+
+function ensureRequiredSevereSections(sections: any[], inference: TemplateInference, extractedData: any) {
+  if (!inference.isSevereServiceValve) return sections;
+  const existing = new Map(sections.map((section) => [normalizeText(section?.title ?? ""), section]));
+  const lineItems = (extractedData?.lineItems ?? []).map((item: any) => `- ${item?.item ?? item?.tag ?? "Line item"}: ${item?.description ?? ""} Qty ${item?.quantity ?? "N/A"}`).join("\n");
+  const processConditions = Object.entries(extractedData?.processConditions ?? {}).map(([key, value]) => `- ${key}: ${value}`).join("\n");
+  const fallbackContent: Record<string, string> = {
+    "Scope of Supply / Line Items": lineItems || "Scope to be confirmed from RFP line items and supplier compliance response.",
+    "Process Conditions / Service Conditions": processConditions || "Process/service conditions require engineering confirmation before final sizing.",
+    "Preliminary Engineering Calculation Summary": `${SEVERE_SERVICE_DISCLAIMER}\n\nProcess inputs, pressure drop severity, indicative Cv/Kv placeholders, and validation checklist shall be completed using company-approved sizing tools. Standards awareness includes ISA 75.01 / IEC 60534, ASME B16.34, and project-specific inspection/test references.`,
+    "Technical Deviations / Clarifications": "Open clarifications shall capture missing process data, final sizing assumptions, acoustic/noise basis, actuator response requirements, inspection hold points, and commercial/schedule impact.",
+    "Executive Dashboard Snapshot": "Demo KPI snapshot: proposal turnaround reduction 40-60%, reusable engineering content 50-70%, compliance coverage above 90%, and 25-40 engineering hours saved per complex bid.",
+  };
+
+  return severeServiceSections.map(([title]) => {
+    const found = existing.get(normalizeText(title));
+    if (found) return found;
+    return {
+      title,
+      content: fallbackContent[title] ?? `${title} for ${inference.application}. ${SEVERE_SERVICE_DISCLAIMER}`,
+      sourceType: "generated",
+      sourceId: null,
+      sourceName: null,
+    };
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -30,10 +180,21 @@ export async function POST(request: Request) {
     if (!extractedData) {
       return new Response(JSON.stringify({ error: "RFP has not been parsed yet" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
+    const inference = inferProposalTemplate(extractedData);
 
-    // Get vault documents for matching
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true },
+    });
+    const orgUsers = currentUser?.organizationId
+      ? await prisma.user.findMany({ where: { organizationId: currentUser.organizationId }, select: { id: true } })
+      : [];
+    const accessibleUserIds = Array.from(new Set([userId, ...orgUsers.map((user) => user.id)]));
+
+    // Get vault documents for matching. Organization-wide vault access is important
+    // for demo teams where engineering knowledge is owned by a different persona.
     const vaultDocs = await prisma.vaultDocument.findMany({
-      where: { userId },
+      where: { userId: { in: accessibleUserIds } },
       include: { sections: true },
     });
 
@@ -42,15 +203,22 @@ export async function POST(request: Request) {
     ) ?? [];
 
     // Get vault text entries for additional context
-    const textEntries = await prisma.vaultTextEntry.findMany({ where: { userId } });
+    const textEntries = await prisma.vaultTextEntry.findMany({ where: { userId: { in: accessibleUserIds } } });
+    const relevantVaultSections = selectRelevantVaultItems(
+      allVaultSections.map((section: any) => ({ ...section, title: section.sectionTitle })),
+      inference,
+      extractedData,
+      36
+    );
+    const relevantTextEntries = selectRelevantVaultItems(textEntries, inference, extractedData, 28);
 
     // Build the prompt with vault context
-    const vaultContext = allVaultSections?.slice(0, 30)?.map((s: any) =>
+    const vaultContext = relevantVaultSections?.map((s: any) =>
       `[Source: ${s?.documentFilename ?? "unknown"} | ID: ${s?.id}]\nTitle: ${s?.sectionTitle ?? ""}\nType: ${s?.sectionType ?? ""}\nContent: ${(s?.content ?? "")?.substring(0, 500)}`
     )?.join("\n\n") ?? "";
 
     // Add text entries context
-    const textEntriesContext = textEntries?.slice(0, 20)?.map((e: any) =>
+    const textEntriesContext = relevantTextEntries?.map((e: any) =>
       `[Text Entry: ${e?.title ?? "untitled"} | ID: ${e?.id} | Industry: ${e?.industry ?? "General"}]\n${(e?.content ?? "")?.substring(0, 500)}`
     )?.join("\n\n") ?? "";
 
@@ -61,7 +229,7 @@ export async function POST(request: Request) {
     const industry = extractedData?.industry ?? "General";
 
     // Determine template sections (with sub-type enrichment)
-    const selectedTemplate = subType
+    let selectedTemplate = subType
       ? getFullTemplateWithSubType(templateType, subType)
       : TEMPLATES.find((t) => t.id === templateType);
     let sectionInstructions: string;
@@ -81,6 +249,7 @@ export async function POST(request: Request) {
 8. Pricing Framework
 9. Terms & Conditions`;
     }
+    sectionInstructions = formatSectionInstructions(inference, sectionInstructions);
 
     // Company size-driven tone & depth
     const companySizeLabels: Record<string, string> = {
@@ -100,10 +269,17 @@ export async function POST(request: Request) {
     const sizeLabel = companySizeLabels[companySize] || companySizeLabels.enterprise;
     const sizeInstr = companySizeInstructions[companySize] || companySizeInstructions.enterprise;
 
-    const systemMessage = `You are an experienced proposal manager in the ${industry} sector. Generate a winning proposal that addresses all RFP requirements.
+    const systemMessage = `You are an experienced proposal manager for engineered industrial proposals. Generate a winning proposal that addresses all RFP requirements.
 
 TARGET COMPANY SIZE: ${sizeLabel}
 TONE & DEPTH GUIDELINES: ${sizeInstr}
+
+INFERRED PROPOSAL CONTEXT:
+- Industry: ${inference.industryLabel}
+- Template: ${inference.templateName}
+- Application/Subtype: ${inference.application}
+- Inference confidence: ${inference.confidence}
+- Detection keywords: ${inference.keywords.join(", ") || "none"}
 
 You have access to past proposal sections from the knowledge vault AND reusable text entries. Use them when relevant, and generate new content where no good vault match exists.
 
@@ -118,9 +294,14 @@ For each proposal section, specify:
 - content: Full section content (detailed, professional, at least 3-4 paragraphs per section)
 - sourceType: "vault" if content is primarily from vault/text entries, "generated" if AI-written
 
-CRITICAL: You MUST generate ALL sections listed above. Do not skip or combine sections. Each section must be a separate entry in the JSON array. Generate a MINIMUM of 6 sections.
+CRITICAL: You MUST generate ALL sections listed above. Do not skip or combine sections. Each section must be a separate entry in the JSON array. For severe-service control valve proposals, generate the complete severe-service section list.
 - sourceId: The vault section ID or text entry ID if sourceType is "vault", null otherwise
 - sourceName: The source document filename or text entry title if from vault, null otherwise
+
+Engineering safety requirement:
+- Include this exact disclaimer in Proposal-Stage Engineering Intelligence and Preliminary Engineering Calculation Summary sections: "${SEVERE_SERVICE_DISCLAIMER}"
+- Use careful terms such as "indicative", "proposal-stage", "requires engineer validation", and "not certified final sizing".
+- Do not claim certified design, final sizing, or final engineering calculation.
 
 ${sectionInstructions}
 
@@ -141,7 +322,9 @@ Respond in JSON format:
 }
 Respond with raw JSON only. Do not include code blocks, markdown, or any other formatting.`;
 
-    const userMessage = `RFP Summary: ${rfpSummary}
+    const userMessage = `RFP Title: ${extractedData?.title ?? "Untitled RFP"}
+
+RFP Summary: ${rfpSummary}
 
 Requirements:
 ${requirements}
@@ -151,7 +334,11 @@ ${lineItems}
 
 Compliance Requirements: ${compliance}
 
-Industry: ${industry}
+Extracted RFP JSON:
+${JSON.stringify(extractedData).substring(0, 22000)}
+
+Industry: ${inference.industryLabel}
+Application/Subtype: ${inference.application}
 
 ---
 Knowledge Vault Sections Available:
@@ -222,9 +409,17 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                   try {
                     const parsed = JSON.parse(buffer);
                     const proposalTitle = parsed?.title ?? extractedData?.title ?? "Untitled Proposal";
-                    const sections = Array.isArray(parsed?.sections) ? parsed.sections : [];
+                    const sections = ensureRequiredSevereSections(
+                      Array.isArray(parsed?.sections) ? parsed.sections : [],
+                      inference,
+                      extractedData
+                    );
+                    const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
+                    const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
+                    const templateName = inference.isSevereServiceValve
+                      ? `${inference.templateName} | Application: ${inference.application} | Industry: ${inference.industryLabel}`
+                      : selectedTemplate?.name ?? (templateType || "General");
 
-                    const templateName = selectedTemplate?.name ?? (templateType || "General");
                     const validSizes = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
                     const proposal = await prisma.proposal.create({
                       data: {
@@ -232,9 +427,9 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                         rfpId,
                         templateType: templateName,
                         title: proposalTitle,
-                        industry: (["Valves", "Pumps", "EPC", "General"].includes(industry) ? industry : "General") as any,
-                        vaultSectionsUsed: parsed?.vaultSectionsUsed ?? 0,
-                        vaultDocumentsUsed: parsed?.vaultDocumentsUsed ?? 0,
+                        industry: (inference.isSevereServiceValve ? "Valves" : (["Valves", "Pumps", "EPC", "General"].includes(industry) ? industry : "General")) as any,
+                        vaultSectionsUsed: vaultSectionIds.size || parsed?.vaultSectionsUsed || 0,
+                        vaultDocumentsUsed: vaultDocumentNames.size || parsed?.vaultDocumentsUsed || 0,
                         companySize: validSizes.includes(companySize) ? companySize as any : null,
                       },
                     });
@@ -254,8 +449,15 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                     }
 
                     // Auto-create compliance checklist if using an industry template
-                    if (selectedTemplate) {
-                      const checklistItems = selectedTemplate.complianceItems.map((item) => ({
+                    if (selectedTemplate || inference.isSevereServiceValve) {
+                      const complianceItems = inference.isSevereServiceValve ? [
+                        { id: "ssv-isa-iec", label: "Control valve sizing standard awareness included", standard: "ISA 75.01 / IEC 60534" },
+                        { id: "ssv-asme", label: "Pressure-temperature considerations included", standard: "ASME B16.34" },
+                        { id: "ssv-nace", label: "Sour-service/material compatibility reviewed where applicable", standard: "NACE MR0175 / ISO 15156 / Project material specification" },
+                        { id: "ssv-itp", label: "Inspection and test plan requirements mapped", standard: "Project ITP / hydrotest / leakage / PMI requirements" },
+                        { id: "ssv-disclaimer", label: "Proposal-stage engineering disclaimer included", standard: "Engineering governance" },
+                      ] : selectedTemplate!.complianceItems;
+                      const checklistItems = complianceItems.map((item) => ({
                         id: item.id,
                         label: item.label,
                         standard: item.standard,
@@ -313,9 +515,17 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
             try {
               const parsed = JSON.parse(buffer);
               const proposalTitle = parsed?.title ?? extractedData?.title ?? "Untitled Proposal";
-              const sections = Array.isArray(parsed?.sections) ? parsed.sections : [];
+              const sections = ensureRequiredSevereSections(
+                Array.isArray(parsed?.sections) ? parsed.sections : [],
+                inference,
+                extractedData
+              );
+              const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
+              const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
 
-              const templateName = selectedTemplate?.name ?? (templateType || "General");
+              const templateName = inference.isSevereServiceValve
+                ? `${inference.templateName} | Application: ${inference.application} | Industry: ${inference.industryLabel}`
+                : selectedTemplate?.name ?? (templateType || "General");
               const validSizes2 = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
               const proposal = await prisma.proposal.create({
                 data: {
@@ -323,9 +533,9 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                   rfpId,
                   templateType: templateName,
                   title: proposalTitle,
-                  industry: (["Valves", "Pumps", "EPC", "General"].includes(industry) ? industry : "General") as any,
-                  vaultSectionsUsed: parsed?.vaultSectionsUsed ?? 0,
-                  vaultDocumentsUsed: parsed?.vaultDocumentsUsed ?? 0,
+                  industry: (inference.isSevereServiceValve ? "Valves" : (["Valves", "Pumps", "EPC", "General"].includes(industry) ? industry : "General")) as any,
+                  vaultSectionsUsed: vaultSectionIds.size || parsed?.vaultSectionsUsed || 0,
+                  vaultDocumentsUsed: vaultDocumentNames.size || parsed?.vaultDocumentsUsed || 0,
                   companySize: validSizes2.includes(companySize) ? companySize as any : null,
                 },
               });
@@ -344,8 +554,15 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                 });
               }
 
-              if (selectedTemplate) {
-                const checklistItems = selectedTemplate.complianceItems.map((item) => ({
+              if (selectedTemplate || inference.isSevereServiceValve) {
+                const complianceItems = inference.isSevereServiceValve ? [
+                  { id: "ssv-isa-iec", label: "Control valve sizing standard awareness included", standard: "ISA 75.01 / IEC 60534" },
+                  { id: "ssv-asme", label: "Pressure-temperature considerations included", standard: "ASME B16.34" },
+                  { id: "ssv-nace", label: "Sour-service/material compatibility reviewed where applicable", standard: "NACE MR0175 / ISO 15156 / Project material specification" },
+                  { id: "ssv-itp", label: "Inspection and test plan requirements mapped", standard: "Project ITP / hydrotest / leakage / PMI requirements" },
+                  { id: "ssv-disclaimer", label: "Proposal-stage engineering disclaimer included", standard: "Engineering governance" },
+                ] : selectedTemplate!.complianceItems;
+                const checklistItems = complianceItems.map((item) => ({
                   id: item.id, label: item.label, standard: item.standard, checked: false,
                 }));
                 await prisma.complianceChecklist.create({ data: { proposalId: proposal.id, checklistItems } });

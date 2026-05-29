@@ -144,6 +144,20 @@ export function getBestVisualizationType(
   const context = `${title} ${text} ${(metadata.templateType ?? "").toLowerCase()} ${(metadata.industry ?? "").toLowerCase()} ${(metadata.subType ?? "").toLowerCase()}`;
 
   if (/executive summary|value proposition|proposal overview/.test(title)) return "value_chain";
+  if (/project background|opportunity context|project context|customer context/.test(title)) return "value_chain";
+  if (/scope of supply|scope of work|line items|supply scope|work breakdown/.test(title)) return "architecture";
+  if (/process conditions|service conditions|operating envelope|process data/.test(title)) return "process_flow";
+  if (/technical approach|engineering basis|technical basis|compressor recycle|anti-surge|severe-service application/.test(title)) return "engineering_dependency";
+  if (/preliminary engineering calculation|calculation summary|validation workflow|sizing basis/.test(title)) return "engineering_dependency";
+  if (/valve configuration|trim|actuator|accessor|valve assembly/.test(title)) return "architecture";
+  if (/inspection|testing|hold point|itp/.test(title)) return "workflow";
+  if (/quality assurance|qa\/qc|qa-qc|quality plan/.test(title)) return "workflow";
+  if (/documentation|deliverables|data book|mdr/.test(title)) return "workflow";
+  if (/technical deviation|deviation|clarification|risk assessment|risk/.test(title)) return "risk_tree";
+  if (/technical evaluation|technical bid evaluation|\btbe\b/.test(title)) return "tbe_matrix";
+  if (/project timeline|delivery schedule|schedule|timeline|gantt|delivery/.test(title)) return "gantt";
+  if (/compliance matrix|coverage matrix|mandatory clause|clause closure/.test(title)) return "compliance_flow";
+  if (/executive dashboard|dashboard|kpi|metric/.test(title)) return "kpi_dashboard";
   if (/dashboard|kpi|metric|throughput|turnaround|bid value|win score|effort reduction|visibility/.test(context)) return "kpi_dashboard";
   if (/technical bid evaluation|\btbe\b|evaluation tag|line item|technical comparison|bid evaluation/.test(context)) return "tbe_matrix";
   if (/compliance matrix|coverage matrix|mandatory clause|clause closure/.test(title)) return "compliance_flow";

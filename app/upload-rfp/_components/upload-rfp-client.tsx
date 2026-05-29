@@ -26,12 +26,39 @@ export function UploadRfpClient() {
   const [fileName, setFileName] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("General");
   const [subType, setSubType] = useState<string>("");
+  const [templateSuggestion, setTemplateSuggestion] = useState<{ template: string; application: string; confidence: string } | null>(null);
   const [companySize, setCompanySize] = useState<string>("enterprise");
 
   // Determine which sub-types to show
   const showValveSubTypes = selectedTemplate === "valve-oem";
   const showPumpSubTypes = selectedTemplate === "pump-oem";
   const subTypeOptions = showValveSubTypes ? VALVE_SUBTYPES : showPumpSubTypes ? PUMP_SUBTYPES : [];
+
+  function inferTemplateSuggestion(data: any) {
+    const text = [
+      data?.title,
+      data?.summary,
+      data?.industry,
+      JSON.stringify(data?.requirements ?? []),
+      JSON.stringify(data?.lineItems ?? []),
+      JSON.stringify(data?.processConditions ?? {}),
+      JSON.stringify(data?.complianceRequirements ?? []),
+    ].filter(Boolean).join(" ").toLowerCase();
+
+    if (!/valve|trim|actuator|compressor recycle|anti[-\s]?surge|severe[-\s]?service|cavitation|flashing|steam conditioning|hydrogen|iec 60534|isa 75\.01/.test(text)) {
+      return null;
+    }
+    let application = "Severe-Service Control Valve";
+    if (/lng|compressor recycle|anti[-\s]?surge/.test(text)) application = "LNG Compressor Recycle / Anti-Surge";
+    else if (/steam conditioning|desuperheat/.test(text)) application = "Steam Conditioning";
+    else if (/hydrogen|h2/.test(text)) application = "Hydrogen Process Control Valve";
+    else if (/refinery|cavitation|flashing|nace/.test(text)) application = "Refinery Severe-Service Control Valve";
+    return {
+      template: "Severe-Service Control Valve Proposal",
+      application,
+      confidence: /compressor recycle|anti[-\s]?surge|steam conditioning|hydrogen|cavitation|flashing/.test(text) ? "High" : "Medium",
+    };
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e?.target?.files?.[0];
@@ -102,6 +129,11 @@ export function UploadRfpClient() {
       if (!parseRes?.ok) throw new Error(parseData?.error ?? "Parsing failed");
 
       setExtractedData(parseData?.extractedData ?? null);
+      const suggestion = inferTemplateSuggestion(parseData?.extractedData ?? null);
+      setTemplateSuggestion(suggestion);
+      if (suggestion && selectedTemplate === "General") {
+        setSelectedTemplate("valve-oem");
+      }
       toast.success("RFP parsed successfully!");
     } catch (err: any) {
       toast.error(err?.message ?? "Upload failed");
@@ -220,6 +252,15 @@ export function UploadRfpClient() {
                   <p className="text-sm text-emerald-700">{extractedData?.title ?? "RFP"} • {extractedData?.industry ?? "General"}</p>
                 </div>
               </div>
+              {templateSuggestion && (
+                <div className="mb-3 rounded-lg border border-emerald-200 bg-white p-3 text-sm text-emerald-900">
+                  <span className="font-semibold">Suggested template:</span> {templateSuggestion.template}
+                  <span className="mx-2 text-emerald-700">•</span>
+                  <span className="font-semibold">Application:</span> {templateSuggestion.application}
+                  <span className="mx-2 text-emerald-700">•</span>
+                  <span className="font-semibold">Confidence:</span> {templateSuggestion.confidence}
+                </div>
+              )}
               {/* Row 1: Template + Sub-Type */}
               <div className="flex items-center gap-3 flex-wrap mb-2">
                 <div className="flex items-center gap-2">

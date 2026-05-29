@@ -15,9 +15,19 @@ Respond in JSON format:
 {
   "title": "Brief title for this RFP",
   "industry": "Valves|Pumps|EPC|General",
+  "customer": "Customer or purchaser name if present",
+  "projectBackground": "Project background / opportunity context",
   "requirements": [{"id": "R1", "description": "...", "category": "technical|commercial|compliance|general"}],
-  "lineItems": [{"item": "...", "description": "...", "quantity": "...", "specifications": "..."}],
+  "lineItems": [{"item": "...", "tag": "...", "description": "...", "quantity": "...", "specifications": "...", "serviceNotes": "..."}],
+  "processConditions": {"Fluid": "...", "Inlet pressure": "...", "Outlet pressure": "...", "Temperature": "..."},
+  "technicalSpecifications": ["specification 1", "specification 2"],
   "complianceRequirements": ["requirement 1", "requirement 2"],
+  "inspectionTestingRequirements": ["test or inspection requirement 1"],
+  "documentationDeliverables": ["deliverable 1"],
+  "deliveryRequirements": ["delivery requirement 1"],
+  "commercialAssumptions": ["commercial assumption 1"],
+  "possibleDeviations": ["possible deviation or clarification 1"],
+  "engineeringReviewPoints": ["engineering review point 1"],
   "evaluationCriteria": ["criteria 1", "criteria 2"],
   "summary": "Brief summary of the RFP"
 }
