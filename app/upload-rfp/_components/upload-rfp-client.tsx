@@ -49,26 +49,35 @@ export function UploadRfpClient() {
     setUploading(true);
     setFileName(file?.name ?? "");
     try {
-      // Get presigned URL
-      const presignedRes = await fetch("/api/upload/presigned", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream", isPublic: false }),
-      });
-      const presignedData = await presignedRes.json().catch(() => ({}));
-      if (!presignedRes?.ok) throw new Error(presignedData?.error ?? "Failed to get upload URL");
+      let cloud_storage_path: string | null = null;
 
-        // Upload directly to cloud storage
-        const uploadUrl = presignedData?.uploadUrl ?? "";
-        const cloud_storage_path = presignedData?.cloud_storage_path ?? "";
-        const uploadHeaders: Record<string, string> = {
-          "Content-Type": file.type || "application/octet-stream",
-          ...(presignedData?.uploadHeaders ?? {}),
-        };
-      if (uploadUrl?.includes("content-disposition")) {
-        uploadHeaders["Content-Disposition"] = "attachment";
+      try {
+        // Cloud storage is useful for audit trail, but parsing can still proceed from
+        // the selected browser file if storage upload is unavailable in a demo.
+        const presignedRes = await fetch("/api/upload/presigned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream", isPublic: false }),
+        });
+        const presignedData = await presignedRes.json().catch(() => ({}));
+        if (!presignedRes?.ok) throw new Error(presignedData?.error ?? "Failed to get upload URL");
+
+          // Upload directly to cloud storage
+          const uploadUrl = presignedData?.uploadUrl ?? "";
+          cloud_storage_path = presignedData?.cloud_storage_path ?? null;
+          const uploadHeaders: Record<string, string> = {
+            "Content-Type": file.type || "application/octet-stream",
+            ...(presignedData?.uploadHeaders ?? {}),
+          };
+        if (uploadUrl?.includes("content-disposition")) {
+          uploadHeaders["Content-Disposition"] = "attachment";
+        }
+        const uploadRes = await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
+        if (!uploadRes?.ok) throw new Error(`Cloud upload failed (${uploadRes?.status})`);
+      } catch (storageErr: any) {
+        console.warn("Cloud upload skipped; continuing with parser-only RFP upload:", storageErr?.message ?? storageErr);
+        cloud_storage_path = null;
       }
-      await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
 
       // Create RFP record
       const createRes = await fetch("/api/rfp", {
