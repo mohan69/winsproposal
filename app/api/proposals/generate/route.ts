@@ -12,6 +12,7 @@ import {
   inferRfpIntelligence,
   selectRelevantSevereServiceVaultItems,
 } from "@/lib/severe-service-intelligence";
+import { artifactToMarkdown, buildEngineeringArtifact } from "@/lib/engineering-artifacts";
 
 function formatSectionInstructions(inference: ReturnType<typeof inferRfpIntelligence>, fallback: string) {
   if (!inference.isSevereServiceValve) return fallback;
@@ -19,6 +20,27 @@ function formatSectionInstructions(inference: ReturnType<typeof inferRfpIntellig
   return `Use this severe-service control valve proposal section structure. Generate every listed section as a separate JSON entry. Use the RFP content dynamically; do not write generic filler.\n${sections
     .map((section, index) => `${index + 1}. ${section.title} — ${section.description}`)
     .join("\n")}`;
+}
+
+function attachDeterministicEngineeringArtifacts(sections: any[], templateType: string, extractedData: any) {
+  return (sections ?? []).map((section) => {
+    const title = section?.title ?? section?.sectionTitle ?? "";
+    if (!["Preliminary Engineering Calculation Summary", "Datasheet Summary", "Drawings and Technical Visuals"].includes(title)) {
+      return section;
+    }
+    const artifact = buildEngineeringArtifact({ sectionTitle: title, templateType, extractedData });
+    if (!artifact) return section;
+    const intro = title === "Drawings and Technical Visuals"
+      ? "This section contains the proposal-grade drawing package generated from the RFP line items, application classification, and engineering review logic."
+      : title === "Datasheet Summary"
+        ? "This section provides tag-specific proposal-stage datasheet rows extracted from the RFP line items and process conditions."
+        : "This section provides structured proposal-stage calculation inputs, assumptions, missing data, risk flags, standards basis, and engineer validation checks.";
+    return {
+      ...section,
+      content: `${intro}\n\n${artifactToMarkdown(artifact)}`,
+      sourceType: section?.sourceType === "vault" ? "vault" : "generated",
+    };
+  });
 }
 
 export async function POST(request: Request) {
@@ -280,16 +302,20 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                   try {
                     const parsed = JSON.parse(buffer);
                     const proposalTitle = parsed?.title ?? extractedData?.title ?? "Untitled Proposal";
-                    const sections = ensureSevereServiceSections(
-                      Array.isArray(parsed?.sections) ? parsed.sections : [],
-                      inference,
+                    const templateName = inference.isSevereServiceValve
+                      ? formatSevereServiceTemplateMetadata(inference)
+                      : selectedTemplate?.name ?? (templateType || "General");
+                    const sections = attachDeterministicEngineeringArtifacts(
+                      ensureSevereServiceSections(
+                        Array.isArray(parsed?.sections) ? parsed.sections : [],
+                        inference,
+                        extractedData
+                      ),
+                      templateName,
                       extractedData
                     );
                     const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
                     const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
-                    const templateName = inference.isSevereServiceValve
-                      ? formatSevereServiceTemplateMetadata(inference)
-                      : selectedTemplate?.name ?? (templateType || "General");
 
                     const validSizes = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
                     const proposal = await prisma.proposal.create({
@@ -380,17 +406,20 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
             try {
               const parsed = JSON.parse(buffer);
               const proposalTitle = parsed?.title ?? extractedData?.title ?? "Untitled Proposal";
-              const sections = ensureSevereServiceSections(
-                Array.isArray(parsed?.sections) ? parsed.sections : [],
-                inference,
+              const templateName = inference.isSevereServiceValve
+                ? formatSevereServiceTemplateMetadata(inference)
+                : selectedTemplate?.name ?? (templateType || "General");
+              const sections = attachDeterministicEngineeringArtifacts(
+                ensureSevereServiceSections(
+                  Array.isArray(parsed?.sections) ? parsed.sections : [],
+                  inference,
+                  extractedData
+                ),
+                templateName,
                 extractedData
               );
               const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
               const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
-
-              const templateName = inference.isSevereServiceValve
-                ? formatSevereServiceTemplateMetadata(inference)
-                : selectedTemplate?.name ?? (templateType || "General");
               const validSizes2 = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
               const proposal = await prisma.proposal.create({
                 data: {

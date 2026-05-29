@@ -1,0 +1,166 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { buildEngineeringArtifact } from "../lib/engineering-artifacts";
+import { ensureSevereServiceSections, formatSevereServiceTemplateMetadata, inferRfpIntelligence } from "../lib/severe-service-intelligence";
+import { getBestVisualizationType } from "../lib/visualization-service";
+
+function assert(condition: unknown, message: string) {
+  if (!condition) throw new Error(message);
+}
+
+const hydrogenRfp = {
+  title: "Hydrogen Process Control Valve Package",
+  summary: "Hydrogen process control valves for export header service with material compatibility, high-integrity sealing, leakage class, traceability dossier, and hazardous area accessories.",
+  lineItems: [
+    { item: "HV-H2-3101A/B/C/D", description: "Hydrogen isolation/control valve assemblies", quantity: 4, service: "Hydrogen export header", specifications: "Class 600, leakage class V" },
+    { item: "FV-H2-3150A/B", description: "Hydrogen flow control valves", quantity: 2, service: "Hydrogen process flow control", specifications: "ISA 75.01 / IEC 60534" },
+    { item: "PV-H2-3190", description: "Hydrogen pressure control valve", quantity: 1, service: "Export header pressure control" },
+    { item: "DOC-H2", description: "Traceability and MDR dossier", quantity: 1 },
+  ],
+  processConditions: { fluid: "Hydrogen", inletPressure: "48 barg", outletPressure: "18 barg", temperature: "60 C", leakageClass: "Class V" },
+  complianceRequirements: ["ASME B16.34", "ISA 75.01 / IEC 60534", "material compatibility", "traceability"],
+};
+
+const lngRfp = {
+  title: "LNG Compressor Recycle Valve Package",
+  summary: "LNG compressor recycle and anti-surge package with high pressure drop, choked-flow risk, acoustic fatigue, fast response duty, severe-service trim, actuator response, and inspection/test clauses.",
+  lineItems: [
+    { item: "XV-CRV-9101A/B/C", description: "LNG compressor recycle control valves", quantity: 3, service: "Compressor recycle / anti-surge", specifications: "Fast response, severe-service trim" },
+    { item: "ASP-9101A/B/C", description: "Anti-surge actuator and accessory package", quantity: 3, service: "Fast-response accessory package" },
+    { item: "DOC-9101", description: "Engineering, inspection, and documentation package", quantity: 1 },
+  ],
+  processConditions: { fluid: "LNG process gas", inletPressure: "95 barg", outletPressure: "32 barg", temperature: "-35 C", flowCases: "normal, recycle, emergency trip" },
+  complianceRequirements: ["ISA 75.01", "IEC 60534", "ASME B16.34", "ITP", "noise review"],
+};
+
+function validateStatic(label: string, rfp: any) {
+  const intel = inferRfpIntelligence(rfp);
+  const templateType = formatSevereServiceTemplateMetadata(intel);
+  const sections = ensureSevereServiceSections([], intel, rfp);
+  const titles = sections.map((section: any) => section.title);
+  assert(!/General/i.test(intel.templateName), `${label}: template fell back to General`);
+  assert(titles.length >= 18, `${label}: expected 18+ sections`);
+  assert(titles.includes("Datasheet Summary"), `${label}: missing datasheet summary`);
+  assert(titles.includes("Preliminary Engineering Calculation Summary"), `${label}: missing calculation summary`);
+  assert(titles.includes("Drawings and Technical Visuals"), `${label}: missing drawing package`);
+  assert(intel.vaultTerms.length > 0, `${label}: vault matching terms missing`);
+  if (label === "Hydrogen") {
+    assert(/Hydrogen Process Control \/ Export Header Control/.test(intel.application), "Hydrogen: wrong application");
+    assert(!/refinery/i.test(intel.application), "Hydrogen: incorrectly classified as refinery");
+  }
+  if (label === "LNG") {
+    assert(/LNG Compressor Recycle \/ Anti-Surge/.test(intel.application), "LNG: wrong application");
+  }
+
+  const datasheet = buildEngineeringArtifact({ sectionTitle: "Datasheet Summary", templateType, extractedData: rfp });
+  const calculation = buildEngineeringArtifact({ sectionTitle: "Preliminary Engineering Calculation Summary", templateType, extractedData: rfp });
+  const drawings = buildEngineeringArtifact({ sectionTitle: "Drawings and Technical Visuals", templateType, extractedData: rfp });
+  assert(datasheet?.artifactType === "datasheet_summary", `${label}: datasheet artifact missing`);
+  if (!datasheet) throw new Error(`${label}: datasheet artifact missing`);
+  assert((datasheet.tables?.[0]?.rows.length ?? 0) >= 3, `${label}: datasheet rows are not tag-specific`);
+  assert(datasheet.tables?.[0]?.rows.some((row) => /H2|CRV|ASP|DOC/.test(row[0])), `${label}: datasheet tags missing`);
+  assert(calculation?.artifactType === "calculation_summary", `${label}: calculation artifact missing`);
+  if (!calculation) throw new Error(`${label}: calculation artifact missing`);
+  assert((calculation.tables?.length ?? 0) >= 3, `${label}: calculation tables missing`);
+  assert(drawings?.artifactType === "drawing_package", `${label}: drawing package missing`);
+  if (!drawings) throw new Error(`${label}: drawing package missing`);
+  assert((drawings.visuals?.length ?? 0) >= 4, `${label}: drawing package too small`);
+
+  const scopeType = getBestVisualizationType("Scope of Supply / Line Items", "tag package line item tree", { templateType });
+  const qaType = getBestVisualizationType("QA/QC and Documentation Plan", "MDR dossier workflow", { templateType });
+  const timelineType = getBestVisualizationType("Project Timeline & Delivery", "delivery schedule", { templateType });
+  const datasheetType = getBestVisualizationType("Datasheet Summary", "native datasheet table", { templateType });
+  assert(scopeType !== "gantt", `${label}: scope visual should not be Gantt`);
+  assert(qaType !== "gantt", `${label}: QA visual should not be Gantt`);
+  assert(timelineType === "gantt", `${label}: timeline visual should be Gantt`);
+  assert(datasheetType === "tbe_matrix", `${label}: datasheet visual should be matrix/table`);
+  return { templateType, sections: titles.length, datasheetRows: datasheet.tables?.[0]?.rows.length, drawings: drawings.visuals?.map((visual) => visual.title) };
+}
+
+async function fetchJson(base: string, cookieRef: { value: string }, pathname: string, opts: RequestInit = {}) {
+  const res = await fetch(base + pathname, { ...opts, headers: { ...(opts.headers ?? {}), cookie: cookieRef.value } });
+  const setCookie = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
+  for (const cookie of setCookie) cookieRef.value += `${cookieRef.value ? "; " : ""}${cookie.split(";")[0]}`;
+  if (!res.ok) throw new Error(`${pathname} failed: ${res.status} ${await res.text()}`);
+  return res;
+}
+
+async function runLiveExportCheck() {
+  if (process.env.VERIFY_LIVE_EXPORTS !== "true") return null;
+  const base = process.env.VERIFY_LIVE_BASE || "https://www.winsproposal.com";
+  const email = process.env.VERIFY_LIVE_EMAIL || "proposal.director@cci-demo.winsproposal.local";
+  const password = process.env.VERIFY_LIVE_PASSWORD || "Demo@12345";
+  const cookie = { value: "" };
+  const csrfRes = await fetchJson(base, cookie, "/api/auth/csrf");
+  const csrf = await csrfRes.json();
+  await fetchJson(base, cookie, "/api/auth/callback/credentials?json=true", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ csrfToken: csrf.csrfToken, email, password, redirect: "false", json: "true" }),
+  });
+  const rfpRes = await fetchJson(base, cookie, "/api/rfp");
+  const rfps = await rfpRes.json();
+  const targets = [
+    { label: "Hydrogen", match: /Hydrogen Process Control Valve Package/i },
+    { label: "LNG", match: /LNG Compressor Recycle Valve Package/i },
+  ];
+  const outputDir = path.resolve("tmp_export_review", `verify-severe-service-${Date.now()}`);
+  await fs.mkdir(outputDir, { recursive: true });
+  const results = [];
+  for (const target of targets) {
+    const rfp = rfps.find((item: any) => target.match.test(item.extractedData?.title || item.filename || ""));
+    assert(rfp, `${target.label}: RFP not found in live environment`);
+    const gen = await fetchJson(base, cookie, "/api/proposals/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rfpId: rfp.id, templateType: "auto", companySize: "enterprise" }),
+    });
+    const reader = gen.body?.getReader();
+    assert(reader, `${target.label}: generation stream missing`);
+    if (!reader) throw new Error(`${target.label}: generation stream missing`);
+    const decoder = new TextDecoder();
+    let partial = "";
+    let proposal: any = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      partial += decoder.decode(value, { stream: true });
+      const lines = partial.split("\n");
+      partial = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6);
+        if (payload === "[DONE]") continue;
+        const parsed = JSON.parse(payload);
+        if (parsed.status === "completed") proposal = parsed.result.proposal;
+        if (parsed.status === "error") throw new Error(parsed.message);
+      }
+    }
+    assert(proposal, `${target.label}: proposal generation did not complete`);
+    assert((proposal.sections?.length ?? 0) >= 18, `${target.label}: live proposal sections too low`);
+    assert(proposal.vaultSectionsUsed > 0, `${target.label}: live vault coverage is zero`);
+    for (const kind of ["pdf", "docx"] as const) {
+      const route = kind === "pdf" ? "export-pdf" : "export-docx";
+      const res = await fetchJson(base, cookie, `/api/proposals/${proposal.id}/${route}?includeDiagrams=true`);
+      const buffer = Buffer.from(await res.arrayBuffer());
+      assert(buffer.length > 10000, `${target.label}: ${kind} export too small`);
+      await fs.writeFile(path.join(outputDir, `${target.label.toLowerCase()}-${proposal.id}.${kind}`), buffer);
+    }
+    results.push({ label: target.label, proposalId: proposal.id, templateType: proposal.templateType, sections: proposal.sections.length, vaultSectionsUsed: proposal.vaultSectionsUsed });
+  }
+  return { outputDir, results };
+}
+
+async function main() {
+  const staticResults = {
+    hydrogen: validateStatic("Hydrogen", hydrogenRfp),
+    lng: validateStatic("LNG", lngRfp),
+  };
+  const liveResults = await runLiveExportCheck();
+  console.log(JSON.stringify({ status: "passed", staticResults, liveResults }, null, 2));
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, type VisualizationType } from "@/lib/visualization-service";
 import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { buildEngineeringArtifact, type EngineeringArtifact } from "@/lib/engineering-artifacts";
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, BorderStyle, PageBreak, Header, Footer,
@@ -372,6 +373,15 @@ function buildRiskTreeDocx(brandColor: string): Table {
 }
 
 function buildNativeDocxDiagram(section: any, proposal: any, brandColor: string): DocxBlock[] {
+  const artifact = buildEngineeringArtifact({
+    sectionTitle: section.sectionTitle,
+    sectionId: section.id,
+    proposalId: proposal.id,
+    templateType: proposal.templateType,
+    extractedData: (proposal as any).extractedDataForArtifacts,
+  });
+  if (artifact) return buildDocxArtifactBlocks(artifact, brandColor);
+
   const type = getBestVisualizationType(section.sectionTitle, section.content, {
     templateType: proposal.templateType,
     industry: proposal.industry,
@@ -411,6 +421,66 @@ function buildNativeDocxDiagram(section: any, proposal: any, brandColor: string)
   ];
 }
 
+function buildArtifactTableDocx(table: NonNullable<EngineeringArtifact["tables"]>[number], brandColor: string): Table {
+  return new Table({
+    width: { size: 9600, type: WidthType.DXA },
+    rows: [
+      new TableRow({
+        children: table.columns.map((column) => docxCell([
+          new Paragraph({ children: [docxText(column, { bold: true, color: "FFFFFF", size: 16 })] }),
+        ], { shading: brandColor })),
+      }),
+      ...table.rows.map((row, rowIndex) => new TableRow({
+        children: row.map((cell) => docxCell([
+          new Paragraph({ children: [docxText(cell, { size: 15, color: "1f2937" })] }),
+        ], { shading: rowIndex % 2 === 0 ? "FFFFFF" : "F8FAFC" })),
+      })),
+    ],
+  });
+}
+
+function buildDocxArtifactBlocks(artifact: EngineeringArtifact, brandColor: string): DocxBlock[] {
+  const blocks: DocxBlock[] = [
+    docxLabelParagraph(`${artifact.title} - Proposal-Grade Engineering Artifact`, brandColor),
+    new Paragraph({
+      children: [docxText(`${artifact.applicationType} | ${artifact.renderedLayoutType.replace(/_/g, " ")}`, { color: "4b5563", size: SIZE_SMALL })],
+      spacing: { after: 120 },
+    }),
+  ];
+  if (artifact.disclaimer) {
+    blocks.push(new Paragraph({
+      children: [docxText(artifact.disclaimer, { italics: true, color: "92400e", size: SIZE_SMALL })],
+      spacing: { after: 120 },
+    }));
+  }
+  for (const table of artifact.tables ?? []) {
+    blocks.push(buildArtifactTableDocx(table, brandColor));
+    blocks.push(new Paragraph({ spacing: { after: 160 } }));
+  }
+  for (const visual of artifact.visuals ?? []) {
+    blocks.push(new Paragraph({
+      children: [docxText(visual.title, { bold: true, color: brandColor, size: SIZE_BODY })],
+      spacing: { before: 80, after: 40 },
+    }));
+    blocks.push(new Paragraph({
+      children: [docxText(visual.layoutType, { color: "4b5563", size: SIZE_SMALL })],
+      spacing: { after: 50 },
+    }));
+    blocks.push(new Table({
+      width: { size: 9600, type: WidthType.DXA },
+      rows: [
+        new TableRow({
+          children: visual.nodes.slice(0, 6).map((node) => docxCell([
+            new Paragraph({ children: [docxText(node, { bold: true, color: "1f2937", size: 15 })], alignment: AlignmentType.CENTER }),
+          ], { shading: "F8FAFC" })),
+        }),
+      ],
+    }));
+  }
+  blocks.push(new Paragraph({ spacing: { after: 220 } }));
+  return blocks;
+}
+
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
@@ -437,7 +507,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     // Fetch TBE responses if proposal has an RFP
     let tbeData: { lineItems: string[]; tags: string[]; cells: Record<string, string> } | null = null;
+    let extractedData: any = null;
     if (proposal.rfpId) {
+      const rfpData = await prisma.rfpUpload.findUnique({ where: { id: proposal.rfpId }, select: { extractedData: true } });
+      extractedData = rfpData?.extractedData ?? null;
       const tbeResponses = await prisma.tbeResponse.findMany({
         where: { rfpId: proposal.rfpId },
         orderBy: [{ lineItemIndex: "asc" }, { tag: "asc" }],
@@ -445,8 +518,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       if (tbeResponses.length > 0) {
         const tags = [...new Set(tbeResponses.map((r: any) => r.tag))];
         const maxIdx = Math.max(...tbeResponses.map((r: any) => r.lineItemIndex));
-        const rfpData = await prisma.rfpUpload.findUnique({ where: { id: proposal.rfpId }, select: { extractedData: true } });
-        const lineItemsData = (rfpData?.extractedData as any)?.lineItems ?? [];
+        const lineItemsData = (extractedData as any)?.lineItems ?? [];
         const lineItems: string[] = [];
         for (let i = 0; i <= maxIdx; i++) {
           lineItems.push(lineItemsData[i]?.item ?? `Item ${i + 1}`);
@@ -458,6 +530,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         tbeData = { lineItems, tags, cells };
       }
     }
+    const proposalForArtifacts = { ...proposal, extractedDataForArtifacts: extractedData };
 
     const checklist = proposal.complianceChecklist?.checklistItems as any[] | null;
     const scoreResult = calculateWinScore({
@@ -656,13 +729,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
       // Native Word visual if enabled. These are section-aware layouts, not repeated screenshots.
       if (includeDiagrams) {
-        docChildren.push(...buildNativeDocxDiagram(section, proposal, brandColor));
+        docChildren.push(...buildNativeDocxDiagram(section, proposalForArtifacts, brandColor));
       }
 
-      // Page break between sections (except last)
-      if (idx < proposal.sections.length - 1) {
-        docChildren.push(new Paragraph({ children: [new PageBreak()] }));
-      }
+      docChildren.push(new Paragraph({ spacing: { after: 260 } }));
     });
 
     // --- COMPLIANCE CHECKLIST ---

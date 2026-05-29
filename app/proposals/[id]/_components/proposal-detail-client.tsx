@@ -18,6 +18,7 @@ import { TbePanel } from "./tbe-panel";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { VISUALIZATION_TYPES, getBestVisualizationType, getFallbackVisualization, getVisualizationTypeMeta, type VisualizationType } from "@/lib/visualization-service";
 import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { buildEngineeringArtifact, type EngineeringArtifact } from "@/lib/engineering-artifacts";
 
 interface ComplianceItem {
   id: string;
@@ -33,6 +34,74 @@ interface ProposalSection {
   sourceType: string;
   sourceId: string | null;
   orderIndex: number;
+}
+
+function EngineeringArtifactBlock({ artifact }: { artifact: EngineeringArtifact }) {
+  return (
+    <div className="mt-4 rounded-lg border border-blue-100 bg-slate-50/80 p-4">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Proposal-grade engineering artifact</p>
+          <h4 className="font-semibold text-slate-950">{artifact.title}</h4>
+          <p className="text-xs text-muted-foreground">
+            {artifact.applicationType} | {artifact.renderedLayoutType.replace(/_/g, " ")}
+          </p>
+        </div>
+        <Badge variant="outline" className="shrink-0 bg-white text-blue-700 border-blue-200">
+          {artifact.artifactType.replace(/_/g, " ")}
+        </Badge>
+      </div>
+      {artifact.disclaimer && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {artifact.disclaimer}
+        </div>
+      )}
+      {(artifact.tables ?? []).map((table, tableIndex) => (
+        <div key={tableIndex} className="mb-4 overflow-x-auto rounded-md border bg-white">
+          <table className="w-full min-w-[900px] text-xs">
+            <thead>
+              <tr className="bg-slate-100">
+                {table.columns.map((column) => (
+                  <th key={column} className="border-b px-3 py-2 text-left font-semibold text-slate-700">{column}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row, rowIndex) => (
+                <tr key={rowIndex} className="border-b last:border-b-0">
+                  {row.map((cell, cellIndex) => (
+                    <td key={`${rowIndex}-${cellIndex}`} className="px-3 py-2 align-top text-slate-700">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+      {(artifact.visuals ?? []).length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2">
+          {artifact.visuals?.map((visual) => (
+            <div key={visual.title} className="rounded-md border bg-white p-3">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div>
+                  <p className="font-medium text-sm text-slate-950">{visual.title}</p>
+                  <p className="text-xs text-muted-foreground">{visual.layoutType}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {visual.nodes.map((node, index) => (
+                  <div key={`${visual.title}-${node}-${index}`} className="flex items-center gap-2">
+                    <span className="rounded border bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700">{node}</span>
+                    {index < visual.nodes.length - 1 && <span className="text-blue-500">→</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface ProposalData {
@@ -588,6 +657,13 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
               industry: proposal?.industry,
             });
             const activeVisualizationType = diagrams[section?.id]?.type ?? defaultVisualizationType;
+            const artifact = buildEngineeringArtifact({
+              sectionTitle: section?.sectionTitle ?? "",
+              sectionId: section?.id,
+              proposalId: proposal?.id,
+              templateType: proposal?.templateType,
+              extractedData: proposal?.rfp?.extractedData,
+            });
 
             return (
           <Card key={section?.id} className="shadow-sm">
@@ -634,10 +710,12 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 </div>
               )}
 
+              {artifact && <EngineeringArtifactBlock artifact={artifact} />}
+
               {/* Diagram generation */}
               <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">
-                  Visualization: {getVisualizationTypeMeta(activeVisualizationType).label}
+                  Artifact visual: {getVisualizationTypeMeta(activeVisualizationType).label}
                 </span>
                 {VISUALIZATION_TYPES.map((type) => (
                   <Button

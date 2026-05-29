@@ -4,6 +4,7 @@
 
 import { getBestVisualizationType, type VisualizationType } from "@/lib/visualization-service";
 import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { buildEngineeringArtifact, renderArtifactForPdf } from "@/lib/engineering-artifacts";
 
 interface PdfSection {
   sectionTitle: string;
@@ -11,6 +12,7 @@ interface PdfSection {
   sourceType: string;
   diagramSvgUrl?: string; // mermaid.ink URL for the diagram
   visualizationType?: VisualizationType;
+  id?: string;
 }
 
 interface TbeData {
@@ -43,6 +45,7 @@ interface PdfData {
   includeDiagrams?: boolean;
   complianceItems?: CompliancePdfItem[];
   tbeData?: TbeData;
+  extractedData?: any;
 }
 
 function escapeHtml(value: unknown): string {
@@ -332,6 +335,15 @@ export function generateProposalHtml(data: PdfData): string {
         industry: data.industry,
       })
     ),
+    artifactHtml: (() => {
+      const artifact = buildEngineeringArtifact({
+        sectionTitle: section.sectionTitle,
+        sectionId: section.id,
+        templateType: data.templateType,
+        extractedData: data.extractedData,
+      });
+      return artifact ? renderArtifactForPdf(artifact, brandColor) : "";
+    })(),
   }));
   const safeTbeData = data.tbeData
     ? {
@@ -364,11 +376,12 @@ export function generateProposalHtml(data: PdfData): string {
     )
     .join("");
 
-  // Build section pages — each section gets its own page
+  // Build proposal body as a continuous document. The PDF engine paginates
+  // naturally while artifact blocks stay near their section content.
   const sectionPages = safeSections
     .map(
       (s, i) =>
-        `<div id="section-${i + 1}" class="page section-page">
+        `<section id="section-${i + 1}" class="proposal-section">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid ${brandColor};">
             <div style="background:${brandColor};color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${i + 1}</div>
             <h2 style="font-size:16px;font-weight:700;color:${brandColor};margin:0;">${s.sectionTitle}</h2>
@@ -377,8 +390,9 @@ export function generateProposalHtml(data: PdfData): string {
           <div style="font-size:11.5px;color:#1f2937;line-height:1.7;">
             ${s.contentHtml}
           </div>
+          ${s.artifactHtml}
           ${data.includeDiagrams !== false ? s.diagramHtml : ""}
-        </div>`
+        </section>`
     )
     .join("");
 
@@ -394,6 +408,7 @@ export function generateProposalHtml(data: PdfData): string {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #1f2937; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .page { width: 210mm; min-height: 297mm; padding: 20mm 22mm 25mm 22mm; position: relative; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+    .body-page { height:auto; min-height:297mm; overflow:visible; page-break-after:auto; page-break-inside:auto; }
     .page:last-child { page-break-after: auto; }
     .cover-page { background: linear-gradient(135deg, ${brandColor} 0%, ${brandColor}dd 50%, ${brandColor}bb 100%); color: white; display: flex; flex-direction: column; justify-content: center; padding: 35mm 30mm; min-height: 297mm; }
     .cover-page .accent-line { width: 80px; height: 4px; background: #10b981; margin-bottom: 30px; }
@@ -407,10 +422,26 @@ export function generateProposalHtml(data: PdfData): string {
     .toc-link { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
     .toc-link span:last-child { font-size:11px; color:#6b7280; flex-shrink:0; margin-left:8px; }
     .section-page { }
+    .proposal-section { break-inside:auto; page-break-inside:auto; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid #e5e7eb; }
     .section-page p { text-align: left; margin: 4px 0; line-height: 1.7; }
     .section-page ul { text-align: left; }
     .section-page li { text-align: left; }
     .diagram-block { margin-top: 20px; padding: 14px 12px 16px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fafc; page-break-inside: avoid; }
+    .engineering-artifact { margin: 14px 0 18px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; }
+    .artifact-kicker { font-size: 8.5px; color: #1d4ed8; text-transform: uppercase; font-weight: 800; letter-spacing: .5px; }
+    .artifact-title { font-size: 12px; color: #111827; font-weight: 800; margin-top: 2px; }
+    .artifact-meta { font-size: 9px; color: #6b7280; margin: 3px 0 8px; }
+    .artifact-disclaimer { font-size: 9px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 7px 8px; margin: 8px 0; }
+    .artifact-table { width:100%; border-collapse:collapse; background:white; font-size:8.5px; margin:8px 0 12px; }
+    .artifact-table th { background:#eff6ff; color:#111827; text-align:left; padding:6px; border:1px solid #cbd5e1; font-size:7.8px; }
+    .artifact-table td { padding:6px; border:1px solid #d1d5db; vertical-align:top; }
+    .artifact-visual-card { background:white; border:1px solid #d1d5db; border-radius:8px; padding:9px; margin:8px 0; break-inside: avoid; page-break-inside: avoid; }
+    .artifact-visual-title { font-size:10px; font-weight:800; color:#111827; }
+    .artifact-visual-type { font-size:8.5px; color:#6b7280; margin:2px 0 7px; }
+    .artifact-node-row { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+    .artifact-node-wrap { display:flex; align-items:center; gap:5px; }
+    .artifact-node { border:1px solid #bfdbfe; background:#f8fafc; border-radius:6px; padding:5px 7px; font-size:8.5px; font-weight:700; color:#1f2937; }
+    .artifact-arrow { font-size:12px; font-weight:800; }
     .diagram-title { font-size: 10px; color: #4b5563; margin-bottom: 12px; font-style: italic; }
     .diagram-flow { display: flex; align-items: stretch; justify-content: space-between; gap: 5px; }
     .diagram-step-wrap { display: flex; align-items: center; flex: 1; min-width: 0; }
@@ -497,8 +528,10 @@ export function generateProposalHtml(data: PdfData): string {
 
   </div>
 
-  <!-- CONTENT SECTIONS — each section is its own page -->
-  ${sectionPages}
+  <!-- CONTENT SECTIONS -->
+  <div class="page body-page">
+    ${sectionPages}
+  </div>
 
   ${safeComplianceItems.length > 0 ? `
   <!-- COMPLIANCE SECTION -->

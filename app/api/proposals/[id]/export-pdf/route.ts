@@ -28,7 +28,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     // Fetch TBE responses if proposal has an RFP
     let tbeData: { lineItems: string[]; tags: string[]; cells: Record<string, string> } | null = null;
+    let extractedData: any = null;
     if (proposal.rfpId) {
+      const rfpData = await prisma.rfpUpload.findUnique({ where: { id: proposal.rfpId }, select: { extractedData: true } });
+      extractedData = rfpData?.extractedData ?? null;
       const tbeResponses = await prisma.tbeResponse.findMany({
         where: { rfpId: proposal.rfpId },
         orderBy: [{ lineItemIndex: "asc" }, { tag: "asc" }],
@@ -36,9 +39,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       if (tbeResponses.length > 0) {
         const tags = [...new Set(tbeResponses.map((r: any) => r.tag))];
         const maxIdx = Math.max(...tbeResponses.map((r: any) => r.lineItemIndex));
-        // Get line item names from RFP extracted data
-        const rfpData = await prisma.rfpUpload.findUnique({ where: { id: proposal.rfpId }, select: { extractedData: true } });
-        const lineItemsData = (rfpData?.extractedData as any)?.lineItems ?? [];
+        const lineItemsData = (extractedData as any)?.lineItems ?? [];
         const lineItems: string[] = [];
         for (let i = 0; i <= maxIdx; i++) {
           lineItems.push(lineItemsData[i]?.item ?? `Item ${i + 1}`);
@@ -75,6 +76,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       status: proposal.status,
       createdAt: proposal.createdAt.toISOString(),
       sections: proposal.sections.map((s) => ({
+        id: s.id,
         sectionTitle: s.sectionTitle,
         content: s.content,
         sourceType: s.sourceType,
@@ -93,6 +95,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       includeDiagrams,
       complianceItems: checklist ?? undefined,
       tbeData: tbeData ?? undefined,
+      extractedData,
     });
 
     // Step 1: Create PDF request
