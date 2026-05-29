@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { TbePanel } from "./tbe-panel";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
-import { VISUALIZATION_TYPES, type VisualizationType } from "@/lib/visualization-service";
+import { VISUALIZATION_TYPES, getBestVisualizationType, getVisualizationTypeMeta, type VisualizationType } from "@/lib/visualization-service";
 
 interface ComplianceItem {
   id: string;
@@ -76,7 +76,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   const [diagrams, setDiagrams] = useState<Record<string, { code: string; title: string; type?: VisualizationType }>>({});
   const [diagramLoading, setDiagramLoading] = useState<string | null>(null);
   const [exportingDocx, setExportingDocx] = useState(false);
-  const [includeDiagramsInExport, setIncludeDiagramsInExport] = useState(false);
+  const [includeDiagramsInExport, setIncludeDiagramsInExport] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -113,7 +113,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   async function handleExportPdf() {
     setExporting(true);
     try {
-      const query = includeDiagramsInExport ? "?includeDiagrams=true" : "";
+      const query = includeDiagramsInExport ? "" : "?includeDiagrams=false";
       const res = await fetch(`/api/proposals/${proposalId}/export-pdf${query}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res?.ok || !contentType.includes("application/pdf")) {
@@ -268,7 +268,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   async function handleExportDocx() {
     setExportingDocx(true);
     try {
-      const query = includeDiagramsInExport ? "?includeDiagrams=true" : "";
+      const query = includeDiagramsInExport ? "" : "?includeDiagrams=false";
       const res = await fetch(`/api/proposals/${proposalId}/export-docx${query}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res?.ok || contentType.includes("application/json")) {
@@ -574,6 +574,15 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
       {/* Sections */}
       {activeTab === "proposal" && <div className="space-y-4">
         {(proposal?.sections ?? [])?.map((section: ProposalSection, idx: number) => (
+          (() => {
+            const defaultVisualizationType = getBestVisualizationType(section?.sectionTitle ?? "", section?.content ?? "", {
+              templateType: proposal?.templateType,
+              industry: proposal?.industry,
+            });
+            const activeVisualizationType = diagrams[section?.id]?.type ?? defaultVisualizationType;
+            const defaultVisualizationLabel = getVisualizationTypeMeta(defaultVisualizationType).label;
+
+            return (
           <Card key={section?.id} className="shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
@@ -621,12 +630,12 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
               {/* Diagram generation */}
               <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">
-                  {diagrams[section?.id] ? "Regenerate diagram:" : "Generate diagram:"}
+                  {diagrams[section?.id] ? "Regenerate diagram:" : `Default: ${defaultVisualizationLabel}`}
                 </span>
                 {VISUALIZATION_TYPES.map((type) => (
                   <Button
                     key={type.id}
-                    variant="ghost"
+                    variant={activeVisualizationType === type.id ? "secondary" : "ghost"}
                     size="sm"
                     className="h-7 text-xs gap-1"
                     disabled={diagramLoading === section?.id}
@@ -654,6 +663,8 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
               )}
             </CardContent>
           </Card>
+            );
+          })()
         ))}
       </div>}
     </div>

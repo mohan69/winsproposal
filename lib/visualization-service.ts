@@ -3,6 +3,10 @@ export type VisualizationType =
   | "process_flow"
   | "workflow"
   | "compliance_flow"
+  | "kpi_dashboard"
+  | "tbe_matrix"
+  | "risk_tree"
+  | "value_chain"
   | "proposal_lifecycle"
   | "engineering_dependency"
   | "flowchart"
@@ -14,6 +18,7 @@ export interface VisualizationContext {
   title: string;
   industry?: string;
   templateType?: string;
+  subType?: string;
   sectionTitle?: string;
   content: string;
 }
@@ -56,6 +61,30 @@ export const VISUALIZATION_TYPES: Array<{
     description: "Standards, inspection, test, deviation, and approval compliance paths.",
   },
   {
+    id: "kpi_dashboard",
+    label: "KPI Dashboard",
+    exportLabel: "KPI Dashboard Visual",
+    description: "Executive metrics, throughput, turnaround, bid value, compliance, and effort reduction.",
+  },
+  {
+    id: "tbe_matrix",
+    label: "TBE Matrix",
+    exportLabel: "Technical Bid Evaluation Matrix",
+    description: "Line-item, tag, compliance, deviation, and response comparison views.",
+  },
+  {
+    id: "risk_tree",
+    label: "Risk Tree",
+    exportLabel: "Risk and Deviation Decision Tree",
+    description: "Risk flags, deviation decisions, mitigation paths, and approval outcomes.",
+  },
+  {
+    id: "value_chain",
+    label: "Value Chain",
+    exportLabel: "Proposal Value Chain",
+    description: "Scope, value drivers, differentiators, execution promise, and customer outcomes.",
+  },
+  {
     id: "proposal_lifecycle",
     label: "Lifecycle",
     exportLabel: "Proposal Lifecycle",
@@ -80,6 +109,10 @@ const TYPE_TO_PROMPT: Record<VisualizationType, string> = {
   process_flow: "a process flow diagram showing the industrial process, engineering sequence, inspection points, outputs, and handoffs",
   workflow: "a workflow diagram showing roles, reviews, decisions, document submissions, and approvals",
   compliance_flow: "a compliance flow showing applicable standards, document evidence, inspection gates, deviations, and approval closure",
+  kpi_dashboard: "a KPI dashboard-style Mermaid flow or quadrant showing bid value, turnaround, compliance coverage, vault reuse, and engineering effort metrics",
+  tbe_matrix: "a technical bid evaluation matrix-style Mermaid diagram showing line items, evaluation tags, compliance status, deviations, and response evidence",
+  risk_tree: "a risk and deviation decision tree showing risk identification, impact, mitigation, approval, and closure outcomes",
+  value_chain: "a proposal value chain visual showing customer scope, technical fit, compliance confidence, delivery assurance, and business value",
   proposal_lifecycle: "a proposal lifecycle diagram from RFP intake through bid/no-bid, technical response, compliance review, approval, export, and submission",
   engineering_dependency: "an engineering dependency flow showing inputs, datasheets, drawings, vendor data, calculations, reviews, and deliverables",
   flowchart: "a flowchart showing the process flow, decision points, and key steps",
@@ -93,22 +126,36 @@ export function normalizeVisualizationType(type?: string | null): VisualizationT
   if (normalized === "pfd") return "process_flow";
   if (normalized === "flowchart") return "workflow";
   if (normalized === "sequence") return "workflow";
-  if (normalized === "gantt") return "proposal_lifecycle";
   if (VISUALIZATION_TYPES.some((item) => item.id === normalized)) return normalized;
   return "workflow";
 }
 
-export function getBestVisualizationType(sectionTitle: string, content: string): VisualizationType {
-  const title = sectionTitle.toLowerCase();
-  const text = content.toLowerCase().substring(0, 1200);
+export function getVisualizationTypeMeta(type: VisualizationType) {
+  return VISUALIZATION_TYPES.find((item) => item.id === normalizeVisualizationType(type)) ?? VISUALIZATION_TYPES[0];
+}
 
-  if (/architecture|interface|integration|system|automation|scada|control|network/.test(title)) return "architecture";
-  if (/compliance|standard|deviation|inspection|itp|api|iso|certification|qa|qc/.test(title)) return "compliance_flow";
-  if (/schedule|timeline|delivery|milestone|approval|submission|proposal/.test(title)) return "proposal_lifecycle";
-  if (/dependency|drawing|datasheet|vendor data|calculation|engineering/.test(title)) return "engineering_dependency";
-  if (/process|manufacturing|fabrication|construction|commissioning|pump|valve|piping|p&id|pfd/.test(title)) return "process_flow";
-  if (/p&id|hydraulic|npsh|api 600|api 610|api 682|cause and effect|loop diagram/.test(text)) return "engineering_dependency";
-  if (/inspection|hydrotest|ndt|material test certificate|deviation|waiver/.test(text)) return "compliance_flow";
+export function getBestVisualizationType(
+  sectionTitle: string,
+  content: string,
+  metadata: { templateType?: string; industry?: string; subType?: string } = {}
+): VisualizationType {
+  const title = sectionTitle.toLowerCase();
+  const text = content.toLowerCase().substring(0, 1800);
+  const context = `${title} ${text} ${(metadata.templateType ?? "").toLowerCase()} ${(metadata.industry ?? "").toLowerCase()} ${(metadata.subType ?? "").toLowerCase()}`;
+
+  if (/executive summary|value proposition|proposal overview/.test(title)) return "value_chain";
+  if (/dashboard|kpi|metric|throughput|turnaround|bid value|win score|effort reduction|visibility/.test(context)) return "kpi_dashboard";
+  if (/technical bid evaluation|\btbe\b|evaluation tag|line item|technical comparison|bid evaluation/.test(context)) return "tbe_matrix";
+  if (/compliance matrix|coverage matrix|mandatory clause|clause closure/.test(title)) return "compliance_flow";
+  if (/workflow|approval path|approval|owner|reviewer|manager|coordinator|release gate|submit/.test(title)) return "workflow";
+  if (/schedule|timeline|delivery|milestone|gantt|project schedule|lead time/.test(context)) return "gantt";
+  if (/risk|deviation|exception|waiver|mitigation|impact|decision tree/.test(context)) return "risk_tree";
+  if (/technical compliance|engineering basis|technical basis|datasheet|calculation|material|npsh|api 600|api 610|api 682|asme|nace/.test(title)) return "engineering_dependency";
+  if (/technical compliance|engineering basis|technical basis|datasheet|calculation|material|npsh|api 600|api 610|api 682|asme|nace/.test(context)) return "engineering_dependency";
+  if (/compliance matrix|coverage matrix|mandatory clause|clause closure|standard|inspection|itp|api|iso|certification|qa|qc/.test(context)) return "compliance_flow";
+  if (/architecture|interface|integration|system|automation|scada|control|network|valve system|pump system/.test(context)) return "architecture";
+  if (/process plant|epc scope|p&id|pfd|process flow|manufacturing|fabrication|construction|commissioning|refinery|petrochemical/.test(context)) return "process_flow";
+  if (/pump|valve|skid|package|line class|fluid|hydraulic/.test(context)) return "architecture";
   return "workflow";
 }
 
@@ -147,11 +194,17 @@ export function sanitizeMermaidLabel(value: string): string {
 
 export function getMermaidImageUrl(mermaidCode: string, format: "png" | "svg" = "png") {
   const code = sanitizeMermaidCode(mermaidCode);
-  const encoded = typeof Buffer !== "undefined"
-    ? Buffer.from(code).toString("base64url")
-    : btoa(unescape(encodeURIComponent(code))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  const encoded = encodeBase64Url(code);
   const type = format === "svg" ? "svg" : "img";
   return `https://mermaid.ink/${type}/${encoded}?type=${format}&width=900&height=520&bgColor=white`;
+}
+
+function encodeBase64Url(value: string): string {
+  const base64 = typeof Buffer !== "undefined"
+    ? Buffer.from(value, "utf-8").toString("base64")
+    : btoa(unescape(encodeURIComponent(value)));
+
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 export function getFallbackVisualization(context: VisualizationContext, type: VisualizationType): GeneratedVisualization {
@@ -185,6 +238,33 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   D -->|No| E["Compliant Response"]
   D -->|Yes| F["Deviation Register"]
   F --> G["Approval Closure"]`,
+    kpi_dashboard: `graph LR
+  A["Bid Value Visibility"] --> B["Turnaround SLA"]
+  A --> C["Compliance Coverage"]
+  C --> D["Vault Reuse"]
+  B --> E["Engineering Effort Reduction"]
+  D --> F["Executive Decision View"]
+  E --> F`,
+    tbe_matrix: `graph TD
+  A["RFP Line Items"] --> B["Evaluation Tags"]
+  B --> C["Technical Response"]
+  C --> D{"Compliant"}
+  D -->|Yes| E["Accepted"]
+  D -->|Clarify| F["Deviation or Query"]
+  F --> G["TBE Recommendation"]`,
+    risk_tree: `graph TD
+  A["Risk or Deviation"] --> B{"Impact Level"}
+  B -->|Low| C["Document and Proceed"]
+  B -->|Medium| D["Mitigation Plan"]
+  B -->|High| E["Management Approval"]
+  D --> F["Client Clarification"]
+  E --> G["Bid Decision"]`,
+    value_chain: `graph LR
+  A["Customer Scope"] --> B["Technical Fit"]
+  B --> C["Compliance Confidence"]
+  C --> D["Delivery Assurance"]
+  D --> E["Commercial Value"]
+  E --> F["Win Theme"]`,
     proposal_lifecycle: `graph LR
   A["Upload RFP"] --> B["Parse Requirements"]
   B --> C["Go No-Go"]
@@ -243,7 +323,13 @@ export async function generateVisualization(
   context: VisualizationContext,
   requestedType?: string | null
 ): Promise<GeneratedVisualization> {
-  const type = normalizeVisualizationType(requestedType || getBestVisualizationType(context.sectionTitle || context.title, context.content));
+  const type = normalizeVisualizationType(
+    requestedType || getBestVisualizationType(context.sectionTitle || context.title, context.content, {
+      templateType: context.templateType,
+      industry: context.industry,
+      subType: context.subType,
+    })
+  );
 
   if (!process.env.ABACUSAI_API_KEY) {
     return getFallbackVisualization(context, type);
@@ -254,7 +340,7 @@ export async function generateVisualization(
 Rules:
 - Output only raw Mermaid code.
 - No markdown fences or explanations.
-- Prefer graph TD or graph LR unless the requested type clearly needs sequenceDiagram or gantt.
+- Use the requested visual form. Use gantt syntax only for schedule/Gantt. Use graph TD/LR for matrix, dashboard, workflow, architecture, risk tree, and value chain visuals.
 - Maximum 14 nodes.
 - Use concise professional labels.
 - Quote every flowchart node label as A["Label"].

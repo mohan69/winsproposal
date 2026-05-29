@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateProposalHtml } from "@/lib/pdf-template";
-import { generateVisualization } from "@/lib/visualization-service";
+import { getBestVisualizationType } from "@/lib/visualization-service";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -24,7 +24,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     if (!proposal) return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     const { searchParams } = new URL(request.url);
-    const includeDiagrams = searchParams.get("includeDiagrams") === "true";
+    const includeDiagrams = searchParams.get("includeDiagrams") !== "false";
 
     // Fetch TBE responses if proposal has an RFP
     let tbeData: { lineItems: string[]; tags: string[]; cells: Record<string, string> } | null = null;
@@ -64,37 +64,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
       complianceTotal: checklist?.length ?? 0,
     });
 
-    // Generate Mermaid diagrams for each section
-    const sectionDiagramUrls: Record<string, string> = {};
-
-    if (includeDiagrams) {
-      for (const section of proposal.sections) {
-        try {
-          const diagram = await generateVisualization({
-            title: proposal.title,
-            sectionTitle: section.sectionTitle,
-            industry: proposal.industry,
-            templateType: proposal.templateType,
-            content: section.content,
-          });
-          if (diagram.imageUrl) {
-            try {
-              const imgCheck = await fetch(diagram.imageUrl, { signal: AbortSignal.timeout(8000) });
-              if (imgCheck.ok) {
-                const buf = await imgCheck.arrayBuffer();
-                if (buf.byteLength > 500) {
-                  sectionDiagramUrls[section.id] = diagram.imageUrl;
-                }
-              }
-            } catch {
-              console.log(`Diagram validation failed for ${section.sectionTitle}, skipping`);
-            }
-          }
-        } catch (err) {
-          console.error(`PDF diagram generation failed for section ${section.sectionTitle}:`, err);
-        }
-      }
-    }
+    // PDF diagrams are drawn as native HTML/CSS so the PDF converter does not depend
+    // on external Mermaid image loading.
 
     // Generate HTML
     const html = generateProposalHtml({
@@ -107,7 +78,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
         sectionTitle: s.sectionTitle,
         content: s.content,
         sourceType: s.sourceType,
-        diagramSvgUrl: sectionDiagramUrls[s.id] || undefined,
+        visualizationType: getBestVisualizationType(s.sectionTitle, s.content, {
+          templateType: proposal.templateType,
+          industry: proposal.industry,
+        }),
       })),
       winScore: scoreResult.total,
       companyName: proposal.user?.companyName ?? undefined,
@@ -116,6 +90,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
       orgName: (proposal.user as any)?.organization?.name ?? undefined,
       orgLogoUrl: (proposal.user as any)?.organization?.logoUrl ?? undefined,
       brandColor: (proposal.user as any)?.organization?.brandColor ?? undefined,
+      includeDiagrams,
+      complianceItems: checklist ?? undefined,
       tbeData: tbeData ?? undefined,
     });
 

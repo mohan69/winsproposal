@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "seed:enterprise-demo": "tsx --require dotenv/config scripts/seed-enterprise-demo.ts",
+    "seed:imi-cci-demo": "tsx --require dotenv/config scripts/seed-imi-cci-demo.ts",
     "verify:production": "node scripts/verify-production.mjs",
     "verify:live": "node scripts/verify-production.mjs",
     "vercel-build": "prisma generate && next build"

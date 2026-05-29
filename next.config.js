@@ -6,6 +6,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  experimental: {
+    webpackBuildWorker: false,
+  },
   images: { unoptimized: true },
   webpack: (config, { isServer }) => {
     if (!isServer) {

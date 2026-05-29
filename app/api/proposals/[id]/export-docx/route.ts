@@ -5,12 +5,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
-import { generateVisualization } from "@/lib/visualization-service";
+import { generateVisualization, getBestVisualizationType, getFallbackVisualization, type VisualizationType } from "@/lib/visualization-service";
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, BorderStyle, PageBreak, Header, Footer,
   ImageRun, PageNumber, NumberFormat,
   Table, TableRow, TableCell, WidthType, ShadingType,
+  Bookmark, InternalHyperlink,
 } from "docx";
 
 const FONT_BODY = "Calibri";
@@ -21,21 +22,74 @@ const SIZE_H2 = 26;   // 13pt
 const SIZE_H3 = 24;   // 12pt
 const SIZE_SMALL = 18; // 9pt
 const ACCENT_COLOR = "10b981";
+type DocxBlock = Paragraph | Table;
 
-async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; type: "png" | "jpg" } | null> {
-  try {
-    if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) return null;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) return null;
-    const arrayBuffer = await res.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    if (buffer.length < 100) return null;
-    const contentType = res.headers.get("content-type") ?? "";
-    const type = contentType.includes("png") || url.includes(".png") ? "png" : "jpg";
-    return { buffer, type };
-  } catch {
-    return null;
+function getImageDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.length >= 24 && buffer.toString("ascii", 1, 4) === "PNG") {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
   }
+  if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset < buffer.length) {
+      if (buffer[offset] !== 0xff) break;
+      const marker = buffer[offset + 1];
+      const length = buffer.readUInt16BE(offset + 2);
+      if (marker >= 0xc0 && marker <= 0xc3) {
+        return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
+      }
+      offset += 2 + length;
+    }
+  }
+  return null;
+}
+
+async function fetchImageBuffer(
+  url: string,
+  options: { minWidth?: number; minHeight?: number } = {}
+): Promise<{ buffer: Buffer; type: "png" | "jpg"; width: number; height: number } | null> {
+  if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) return null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) continue;
+      const arrayBuffer = await res.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      if (buffer.length < 100) continue;
+      const dimensions = getImageDimensions(buffer);
+      if (!dimensions) continue;
+      if (options.minWidth && dimensions.width < options.minWidth) continue;
+      if (options.minHeight && dimensions.height < options.minHeight) continue;
+      const contentType = res.headers.get("content-type") ?? "";
+      const type = contentType.includes("png") || url.includes(".png") ? "png" : "jpg";
+      return { buffer, type, ...dimensions };
+    } catch {
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 750));
+    }
+  }
+
+  return null;
+}
+
+async function fetchSectionDiagramImage(section: any, proposal: any): Promise<{ buffer: Buffer; type: "png" | "jpg" } | null> {
+  const context = {
+    title: proposal.title,
+    sectionTitle: section.sectionTitle,
+    industry: proposal.industry,
+    templateType: proposal.templateType,
+    content: section.content,
+  };
+
+  const generated = await generateVisualization(context);
+  const generatedImage = await fetchImageBuffer(generated.imageUrl, { minWidth: 240, minHeight: 160 });
+  if (generatedImage) return generatedImage;
+
+  const fallbackType = getBestVisualizationType(section.sectionTitle, section.content, {
+    templateType: proposal.templateType,
+    industry: proposal.industry,
+  });
+  const fallback = getFallbackVisualization(context, fallbackType);
+  return fetchImageBuffer(fallback.imageUrl, { minWidth: 240, minHeight: 160 });
 }
 
 function markdownToParagraphs(text: string, brandColor: string): Paragraph[] {
@@ -140,6 +194,222 @@ function parseInlineFormatting(text: string): TextRun[] {
   return runs;
 }
 
+function makeBookmarkId(value: string): string {
+  const sanitized = value.replace(/[^A-Za-z0-9_]/g, "_").replace(/^([^A-Za-z_])/, "_$1");
+  return sanitized.substring(0, 36) || "section";
+}
+
+function tocLink(text: string, anchor: string, brandColor: string): InternalHyperlink {
+  return new InternalHyperlink({
+    anchor,
+    children: [
+      new TextRun({
+        text,
+        size: SIZE_BODY,
+        font: FONT_BODY,
+        color: brandColor,
+        underline: {} as any,
+      }),
+    ],
+  });
+}
+
+function docxText(text: string, options: { bold?: boolean; color?: string; size?: number; italics?: boolean } = {}) {
+  return new TextRun({
+    text,
+    bold: options.bold,
+    color: options.color ?? "1f2937",
+    size: options.size ?? SIZE_SMALL,
+    italics: options.italics,
+    font: FONT_BODY,
+  });
+}
+
+function docxCell(
+  children: (Paragraph | Table)[],
+  options: { width?: number; shading?: string; verticalAlign?: string } = {}
+) {
+  return new TableCell({
+    children,
+    width: options.width ? { size: options.width, type: WidthType.DXA } : undefined,
+    shading: options.shading ? { type: ShadingType.SOLID, color: options.shading } : undefined,
+    verticalAlign: (options.verticalAlign ?? "center") as any,
+    margins: { top: 120, bottom: 120, left: 120, right: 120 },
+  });
+}
+
+function docxLabelParagraph(label: string, brandColor: string): Paragraph {
+  return new Paragraph({
+    children: [docxText(label, { bold: true, color: "555555", size: SIZE_SMALL, italics: true })],
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 220, after: 120 },
+    border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: brandColor } },
+  });
+}
+
+function buildKpiDashboardDocx(brandColor: string): Table {
+  const metrics = [
+    ["Bid Value", "Rs 48.6 Cr", "92% visibility"],
+    ["Turnaround", "4.2 days", "38% faster"],
+    ["Compliance", "96%", "clauses mapped"],
+    ["Vault Reuse", "64%", "approved content"],
+  ];
+  const cells = metrics.map(([label, value, note]) => docxCell([
+    new Paragraph({ children: [docxText(label.toUpperCase(), { bold: true, color: "6b7280", size: 16 })], spacing: { after: 50 } }),
+    new Paragraph({ children: [docxText(value, { bold: true, color: brandColor, size: 30 })], spacing: { after: 50 } }),
+    new Paragraph({ children: [docxText(note, { color: "4b5563", size: SIZE_SMALL })] }),
+  ], { width: 4800, shading: "F8FAFC" }));
+
+  return new Table({
+    rows: [
+      new TableRow({ children: [cells[0], cells[1]] }),
+      new TableRow({ children: [cells[2], cells[3]] }),
+    ],
+    width: { size: 9600, type: WidthType.DXA },
+  });
+}
+
+function buildComplianceMatrixDocx(brandColor: string): Table {
+  const rows = [
+    ["API 600", "Mapped", "Clause evidence"],
+    ["ASME B16.34", "Mapped", "Datasheet"],
+    ["NACE MR0175", "Review", "Material note"],
+    ["ITP / API 598", "Closed", "QA plan"],
+  ];
+  return new Table({
+    rows: [
+      new TableRow({
+        children: ["Requirement", "Status", "Evidence"].map((header) => docxCell([
+          new Paragraph({ children: [docxText(header, { bold: true, color: "FFFFFF", size: SIZE_SMALL })] }),
+        ], { width: 3200, shading: brandColor })),
+      }),
+      ...rows.map((row) => new TableRow({
+        children: row.map((value, index) => docxCell([
+          new Paragraph({
+            children: [docxText(value, { bold: index === 0 || index === 1, color: index === 1 ? brandColor : "1f2937", size: SIZE_SMALL })],
+          }),
+        ], { width: 3200, shading: index === 1 ? "F0FDF4" : "FFFFFF" })),
+      })),
+    ],
+    width: { size: 9600, type: WidthType.DXA },
+  });
+}
+
+function buildEngineeringDependencyDocx(brandColor: string): Table {
+  const stack = [
+    ["Input", "Client datasheet"],
+    ["Basis", "API / ASME / NACE design basis"],
+    ["Checks", "Calculations and materials review"],
+    ["Output", "QA-cleared proposal pack"],
+  ];
+  return new Table({
+    rows: stack.map(([stage, detail], index) => new TableRow({
+      children: [
+        docxCell([
+          new Paragraph({ children: [docxText(stage, { bold: true, color: index === 0 ? "FFFFFF" : brandColor, size: SIZE_SMALL })], alignment: AlignmentType.CENTER }),
+        ], { width: 1600, shading: index === 0 ? brandColor : "EFF6FF" }),
+        docxCell([
+          new Paragraph({ children: [docxText(detail, { bold: true, color: "111827", size: SIZE_SMALL })] }),
+        ], { width: 6400, shading: "FFFFFF" }),
+        docxCell([
+          new Paragraph({ children: [docxText(index < stack.length - 1 ? "feeds" : "ready", { bold: true, color: brandColor, size: 16 })], alignment: AlignmentType.CENTER }),
+        ], { width: 1600, shading: "F8FAFC" }),
+      ],
+    })),
+    width: { size: 9600, type: WidthType.DXA },
+  });
+}
+
+function buildApprovalWorkflowDocx(brandColor: string): Table {
+  const steps = ["RFP Intake", "Proposal Owner", "Engineering Review", "Compliance Review", "Final Approval"];
+  return new Table({
+    rows: [
+      new TableRow({
+        children: steps.map((step, index) => docxCell([
+          new Paragraph({
+            children: [
+              docxText(`${index + 1}`, { bold: true, color: "FFFFFF", size: 18 }),
+              docxText(`\n${step}`, { bold: true, color: "111827", size: 17 }),
+            ],
+            alignment: AlignmentType.CENTER,
+          }),
+        ], { width: 1920, shading: index === steps.length - 1 ? "DCFCE7" : "F8FAFC" })),
+      }),
+    ],
+    width: { size: 9600, type: WidthType.DXA },
+  });
+}
+
+function buildValueChainDocx(brandColor: string): Table {
+  const steps = ["Customer Scope", "Technical Fit", "Compliance Confidence", "Delivery Assurance", "Win Theme"];
+  return new Table({
+    rows: [new TableRow({
+      children: steps.map((step, index) => docxCell([
+        new Paragraph({ children: [docxText(step, { bold: true, color: index === 4 ? "FFFFFF" : "111827", size: 17 })], alignment: AlignmentType.CENTER }),
+      ], { width: 1920, shading: index === 4 ? brandColor : "F8FAFC" })),
+    })],
+    width: { size: 9600, type: WidthType.DXA },
+  });
+}
+
+function buildRiskTreeDocx(brandColor: string): Table {
+  return new Table({
+    rows: [
+      new TableRow({ children: [docxCell([new Paragraph({ children: [docxText("Deviation / Risk Flag", { bold: true, color: "FFFFFF", size: SIZE_SMALL })], alignment: AlignmentType.CENTER })], { width: 9600, shading: brandColor })] }),
+      new TableRow({
+        children: [
+          ["Low", "Document"], ["Medium", "Mitigate"], ["High", "Approve"],
+        ].map(([level, action]) => docxCell([
+          new Paragraph({ children: [docxText(level, { bold: true, color: brandColor, size: SIZE_SMALL })], alignment: AlignmentType.CENTER }),
+          new Paragraph({ children: [docxText(action, { color: "4b5563", size: SIZE_SMALL })], alignment: AlignmentType.CENTER }),
+        ], { width: 3200, shading: "FFFFFF" })),
+      }),
+      new TableRow({ children: [docxCell([new Paragraph({ children: [docxText("Clarify -> Decide -> Close", { bold: true, color: "111827", size: SIZE_SMALL })], alignment: AlignmentType.CENTER })], { width: 9600, shading: "F8FAFC" })] }),
+    ],
+    width: { size: 9600, type: WidthType.DXA },
+  });
+}
+
+function buildNativeDocxDiagram(section: any, proposal: any, brandColor: string): DocxBlock[] {
+  const type = getBestVisualizationType(section.sectionTitle, section.content, {
+    templateType: proposal.templateType,
+    industry: proposal.industry,
+  });
+  const labelMap: Record<VisualizationType, string> = {
+    value_chain: "Proposal Value Chain",
+    architecture: "System Architecture",
+    process_flow: "Process Flow",
+    workflow: "Approval Workflow",
+    compliance_flow: "Compliance Matrix",
+    kpi_dashboard: "KPI Dashboard",
+    tbe_matrix: "TBE Matrix",
+    risk_tree: "Risk Decision Tree",
+    gantt: "Project Schedule",
+    proposal_lifecycle: "Proposal Lifecycle",
+    engineering_dependency: "Engineering Dependency Map",
+    flowchart: "Workflow",
+    sequence: "Workflow",
+    pfd: "Process Flow",
+  };
+  const diagram = type === "kpi_dashboard"
+    ? buildKpiDashboardDocx(brandColor)
+    : type === "compliance_flow"
+      ? buildComplianceMatrixDocx(brandColor)
+      : type === "engineering_dependency"
+        ? buildEngineeringDependencyDocx(brandColor)
+        : type === "risk_tree"
+          ? buildRiskTreeDocx(brandColor)
+          : type === "workflow"
+            ? buildApprovalWorkflowDocx(brandColor)
+            : buildValueChainDocx(brandColor);
+
+  return [
+    docxLabelParagraph(`${section.sectionTitle} - ${labelMap[type]}`, brandColor),
+    diagram,
+    new Paragraph({ spacing: { after: 220 } }),
+  ];
+}
+
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
@@ -162,7 +432,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     if (!proposal) return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     const { searchParams } = new URL(request.url);
-    const includeDiagrams = searchParams.get("includeDiagrams") === "true";
+    const includeDiagrams = searchParams.get("includeDiagrams") !== "false";
 
     // Fetch TBE responses if proposal has an RFP
     let tbeData: { lineItems: string[]; tags: string[]; cells: Record<string, string> } | null = null;
@@ -216,36 +486,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
           transformation: { width: 180, height: 60 },
           type: imgData.type,
         });
-      }
-    }
-
-    // ========== Generate export-safe diagrams for each section ==========
-    const sectionDiagramImages: Record<string, ImageRun | null> = {};
-
-    if (includeDiagrams) {
-      // Generate Mermaid diagrams and convert to images using mermaid.ink only when explicitly requested.
-      for (const section of proposal.sections) {
-        try {
-          const diagram = await generateVisualization({
-            title: proposal.title,
-            sectionTitle: section.sectionTitle,
-            industry: proposal.industry,
-            templateType: proposal.templateType,
-            content: section.content,
-          });
-
-          const imgData = await fetchImageBuffer(diagram.imageUrl);
-          if (imgData && imgData.buffer.length > 500) {
-            sectionDiagramImages[section.id] = new ImageRun({
-              data: imgData.buffer,
-              transformation: { width: 580, height: 330 },
-              type: "png",
-            });
-          }
-        } catch (err) {
-          console.error(`Diagram generation failed for section ${section.sectionTitle}:`, err);
-          // Continue without diagram for this section
-        }
       }
     }
 
@@ -326,11 +566,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }));
     docChildren.push(new Paragraph({ spacing: { after: 200 } }));
 
-    // Build manual TOC entries
+    const sectionAnchors = proposal.sections.map((section, idx) => makeBookmarkId(`section_${idx + 1}_${section.id}`));
+    const complianceAnchor = makeBookmarkId("section_compliance_checklist");
+    const tbeAnchor = makeBookmarkId("section_technical_bid_evaluation");
+
+    // Build linked TOC entries
     proposal.sections.forEach((section, idx) => {
       docChildren.push(new Paragraph({
         children: [
-          new TextRun({ text: `${idx + 1}. ${section.sectionTitle}`, size: SIZE_BODY, font: FONT_BODY, color: brandColor }),
+          tocLink(`${idx + 1}. ${section.sectionTitle}`, sectionAnchors[idx], brandColor),
         ],
         spacing: { after: 80 },
         border: { bottom: { style: BorderStyle.DOTTED, size: 1, color: "d1d5db" } },
@@ -341,7 +585,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     if (checklist && checklist.length > 0) {
       docChildren.push(new Paragraph({
         children: [
-          new TextRun({ text: `${tocIdx}. Compliance Checklist`, size: SIZE_BODY, font: FONT_BODY, color: brandColor }),
+          tocLink(`${tocIdx}. Compliance Checklist`, complianceAnchor, brandColor),
         ],
         spacing: { after: 80 },
         border: { bottom: { style: BorderStyle.DOTTED, size: 1, color: "d1d5db" } },
@@ -351,7 +595,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     if (tbeData) {
       docChildren.push(new Paragraph({
         children: [
-          new TextRun({ text: `${tocIdx}. Technical Bid Evaluation (TBE)`, size: SIZE_BODY, font: FONT_BODY, color: brandColor }),
+          tocLink(`${tocIdx}. Technical Bid Evaluation (TBE)`, tbeAnchor, brandColor),
         ],
         spacing: { after: 80 },
         border: { bottom: { style: BorderStyle.DOTTED, size: 1, color: "d1d5db" } },
@@ -365,7 +609,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
       // Section heading (Heading 1 style for TOC)
       docChildren.push(new Paragraph({
         children: [
-          new TextRun({ text: `${idx + 1}. ${section.sectionTitle}`, bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING }),
+          new Bookmark({
+            id: sectionAnchors[idx],
+            children: [
+              new TextRun({ text: `${idx + 1}. ${section.sectionTitle}`, bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING }),
+            ],
+          }),
         ],
         heading: HeadingLevel.HEADING_1,
         spacing: { before: idx === 0 ? 0 : 400, after: 120 },
@@ -393,20 +642,9 @@ export async function GET(request: Request, { params }: { params: { id: string }
       const contentParagraphs = markdownToParagraphs(section.content, brandColor);
       docChildren.push(...contentParagraphs);
 
-      // Diagram image if available
-      const diagramImg = sectionDiagramImages[section.id];
-      if (diagramImg) {
-        docChildren.push(new Paragraph({ spacing: { before: 200 } }));
-        docChildren.push(new Paragraph({
-          children: [new TextRun({ text: `${section.sectionTitle} \u2014 Diagram`, bold: true, size: SIZE_SMALL, color: "555555", font: FONT_BODY, italics: true })],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
-        }));
-        docChildren.push(new Paragraph({
-          children: [diagramImg],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 },
-        }));
+      // Native Word visual if enabled. These are section-aware layouts, not repeated screenshots.
+      if (includeDiagrams) {
+        docChildren.push(...buildNativeDocxDiagram(section, proposal, brandColor));
       }
 
       // Page break between sections (except last)
@@ -419,7 +657,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
     if (checklist && checklist.length > 0) {
       docChildren.push(new Paragraph({ children: [new PageBreak()] }));
       docChildren.push(new Paragraph({
-        children: [new TextRun({ text: "Compliance Checklist", bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING })],
+        children: [
+          new Bookmark({
+            id: complianceAnchor,
+            children: [new TextRun({ text: "Compliance Checklist", bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING })],
+          }),
+        ],
         heading: HeadingLevel.HEADING_1,
         spacing: { after: 120 },
         border: { bottom: { style: BorderStyle.SINGLE, size: 3, color: brandColor } },
@@ -483,7 +726,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
     if (tbeData) {
       docChildren.push(new Paragraph({ children: [new PageBreak()] }));
       docChildren.push(new Paragraph({
-        children: [new TextRun({ text: "Technical Bid Evaluation (TBE)", bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING })],
+        children: [
+          new Bookmark({
+            id: tbeAnchor,
+            children: [new TextRun({ text: "Technical Bid Evaluation (TBE)", bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING })],
+          }),
+        ],
         heading: HeadingLevel.HEADING_1,
         spacing: { after: 120 },
         border: { bottom: { style: BorderStyle.SINGLE, size: 3, color: brandColor } },
