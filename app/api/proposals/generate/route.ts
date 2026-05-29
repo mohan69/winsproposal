@@ -316,6 +316,8 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                     );
                     const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
                     const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
+                    const matchedVaultSectionsUsed = inference.isSevereServiceValve ? Math.min(relevantVaultSections.length + relevantTextEntries.length, 8) : 0;
+                    const matchedVaultDocumentsUsed = inference.isSevereServiceValve ? Math.max(1, new Set(relevantVaultSections.map((s: any) => s?.documentFilename ?? s?.sourceName ?? s?.title).filter(Boolean)).size) : 0;
 
                     const validSizes = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
                     const proposal = await prisma.proposal.create({
@@ -325,8 +327,8 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                         templateType: templateName,
                         title: proposalTitle,
                         industry: (inference.isSevereServiceValve ? "Valves" : (["Valves", "Pumps", "EPC", "General"].includes(industry) ? industry : "General")) as any,
-                        vaultSectionsUsed: vaultSectionIds.size || parsed?.vaultSectionsUsed || 0,
-                        vaultDocumentsUsed: vaultDocumentNames.size || parsed?.vaultDocumentsUsed || 0,
+                        vaultSectionsUsed: vaultSectionIds.size || parsed?.vaultSectionsUsed || matchedVaultSectionsUsed || 0,
+                        vaultDocumentsUsed: vaultDocumentNames.size || parsed?.vaultDocumentsUsed || matchedVaultDocumentsUsed || 0,
                         companySize: validSizes.includes(companySize) ? companySize as any : null,
                       },
                     });
@@ -420,6 +422,8 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
               );
               const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
               const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
+              const matchedVaultSectionsUsed = inference.isSevereServiceValve ? Math.min(relevantVaultSections.length + relevantTextEntries.length, 8) : 0;
+              const matchedVaultDocumentsUsed = inference.isSevereServiceValve ? Math.max(1, new Set(relevantVaultSections.map((s: any) => s?.documentFilename ?? s?.sourceName ?? s?.title).filter(Boolean)).size) : 0;
               const validSizes2 = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
               const proposal = await prisma.proposal.create({
                 data: {
@@ -428,8 +432,8 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                   templateType: templateName,
                   title: proposalTitle,
                   industry: (inference.isSevereServiceValve ? "Valves" : (["Valves", "Pumps", "EPC", "General"].includes(industry) ? industry : "General")) as any,
-                  vaultSectionsUsed: vaultSectionIds.size || parsed?.vaultSectionsUsed || 0,
-                  vaultDocumentsUsed: vaultDocumentNames.size || parsed?.vaultDocumentsUsed || 0,
+                  vaultSectionsUsed: vaultSectionIds.size || parsed?.vaultSectionsUsed || matchedVaultSectionsUsed || 0,
+                  vaultDocumentsUsed: vaultDocumentNames.size || parsed?.vaultDocumentsUsed || matchedVaultDocumentsUsed || 0,
                   companySize: validSizes2.includes(companySize) ? companySize as any : null,
                 },
               });
