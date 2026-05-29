@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { TbePanel } from "./tbe-panel";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { VISUALIZATION_TYPES, getBestVisualizationType, getFallbackVisualization, getVisualizationTypeMeta, type VisualizationType } from "@/lib/visualization-service";
+import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 
 interface ComplianceItem {
   id: string;
@@ -314,10 +315,11 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
 
   const vaultSections = proposal?.sections?.filter((s: ProposalSection) => s?.sourceType === "vault") ?? [];
   const checkedCount = checklistItems.filter((i) => i.checked).length;
-  const metadataParts = (proposal?.templateType ?? "").split("|").map((part) => part.trim());
-  const displayTemplate = metadataParts[0] || proposal?.templateType || "General";
-  const displayApplication = metadataParts.find((part) => part.toLowerCase().startsWith("application:"))?.replace(/^application:\s*/i, "");
-  const displayIndustry = metadataParts.find((part) => part.toLowerCase().startsWith("industry:"))?.replace(/^industry:\s*/i, "") || proposal?.industry;
+  const templateMetadata = parseProposalTemplateMetadata(proposal?.templateType);
+  const displayTemplate = templateMetadata.template || proposal?.templateType || "General";
+  const displayApplication = templateMetadata.application;
+  const displayIndustry = templateMetadata.industry || proposal?.industry;
+  const displayPackageType = templateMetadata.packageType;
 
   return (
     <div className="p-4 md:p-8 max-w-[1200px] mx-auto">
@@ -335,6 +337,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
             </Badge>
             <Badge variant="outline">Industry: {displayIndustry}</Badge>
             {displayApplication && <Badge variant="outline">Application: {displayApplication}</Badge>}
+            {displayPackageType && <Badge variant="outline">Package Type: {displayPackageType}</Badge>}
             {proposal?.companySize && (
               <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                 {({ startup: "Startup", sme: "SME", mid_market: "Mid-Market", enterprise: "Enterprise", conglomerate: "Conglomerate" } as Record<string, string>)[proposal.companySize] ?? proposal.companySize}

@@ -147,12 +147,15 @@ export function getBestVisualizationType(
   if (/project background|opportunity context|project context|customer context/.test(title)) return "value_chain";
   if (/scope of supply|scope of work|line items|supply scope|work breakdown/.test(title)) return "architecture";
   if (/process conditions|service conditions|operating envelope|process data/.test(title)) return "process_flow";
-  if (/technical approach|engineering basis|technical basis|compressor recycle|anti-surge|severe-service application/.test(title)) return "engineering_dependency";
+  if (/technical specification response|technical response|requirement response/.test(title)) return "engineering_dependency";
+  if (/engineering basis|technical basis|compressor recycle|anti-surge|severe-service application/.test(title)) return "engineering_dependency";
   if (/preliminary engineering calculation|calculation summary|validation workflow|sizing basis/.test(title)) return "engineering_dependency";
   if (/valve configuration|trim|actuator|accessor|valve assembly/.test(title)) return "architecture";
+  if (/datasheet summary|datasheet table|tag summary/.test(title)) return "tbe_matrix";
   if (/inspection|testing|hold point|itp/.test(title)) return "workflow";
-  if (/quality assurance|qa\/qc|qa-qc|quality plan/.test(title)) return "workflow";
-  if (/documentation|deliverables|data book|mdr/.test(title)) return "workflow";
+  if (/quality assurance|qa\/qc|qa-qc|quality plan|documentation plan/.test(title)) return "workflow";
+  if (/documentation|deliverables|data book|mdr|dossier/.test(title)) return "workflow";
+  if (/drawings|technical visuals|drawing gallery|p&id|pfd/.test(title)) return "architecture";
   if (/technical deviation|deviation|clarification|risk assessment|risk/.test(title)) return "risk_tree";
   if (/technical evaluation|technical bid evaluation|\btbe\b/.test(title)) return "tbe_matrix";
   if (/project timeline|delivery schedule|schedule|timeline|gantt|delivery/.test(title)) return "gantt";
@@ -225,6 +228,76 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   const title = context.sectionTitle || context.title || "Proposal Workflow";
   const safeTitle = sanitizeMermaidLabel(title);
   const diagramTitle = VISUALIZATION_TYPES.find((item) => item.id === type)?.exportLabel ?? "Workflow Diagram";
+  const combined = `${title} ${context.content} ${context.templateType ?? ""} ${context.industry ?? ""}`.toLowerCase();
+  const isHydrogen = /hydrogen|\bh2\b|export header|traceability|leakage class/.test(combined);
+  const isLng = /lng|compressor recycle|anti[-\s]?surge|\bcrv\b|fast[-\s]?response/.test(combined);
+  const isSteam = /steam conditioning|desuperheat|spray water|thermal cycling/.test(combined);
+  const isRefinery = /refinery|cavitation|flashing|nace|sour service/.test(combined);
+  const severeArchitecture = () => {
+    if (isHydrogen) return `graph LR
+  A["Hydrogen Source"] --> B["Isolation and Strainer"]
+  B --> C["Hydrogen Control Valve"]
+  C --> D["Export Header"]
+  E["Material Compatibility Review"] --> C
+  F["Leakage Class and Sealing"] --> C
+  G["Traceability Dossier"] --> H["QA Release"]`;
+    if (isLng) return `graph LR
+  A["Compressor Discharge"] --> B["Recycle Line"]
+  B --> C["Anti-Surge Controller"]
+  C --> D["Fast Response Actuator"]
+  D --> E["Compressor Recycle Valve"]
+  E --> F["Compressor Suction"]
+  G["Noise and Acoustic Review"] --> E`;
+    if (isSteam) return `graph LR
+  A["High Pressure Steam"] --> B["Pressure Letdown Trim"]
+  B --> C["Desuperheating Zone"]
+  D["Spray Water Control"] --> C
+  C --> E["Conditioned Steam Header"]
+  F["Thermal Cycling Review"] --> B`;
+    if (isRefinery) return `graph LR
+  A["High Pressure Process Line"] --> B["Severe-Service Trim"]
+  B --> C["Pressure Letdown"]
+  C --> D["Downstream Process"]
+  E["NACE and Materials Review"] --> B
+  F["Cavitation and Flashing Review"] --> B`;
+    return `graph LR
+  A["RFP Requirements"] --> B["Engineering Basis"]
+  B --> C["Technical Package"]
+  C --> D["Vendor Interfaces"]
+  C --> E["Controls and Compliance"]
+  D --> F["Integrated Proposal"]`;
+  };
+  const severeProcessFlow = () => {
+    if (isHydrogen) return `graph LR
+  A["Hydrogen Feed"] --> B["Filter or Isolation"]
+  B --> C["Control Valve Package"]
+  C --> D["Export Header"]
+  C --> E["Pressure and Leakage Monitoring"]
+  E --> F["Process Safety Review"]`;
+    if (isLng) return `graph LR
+  A["Compressor Discharge"] --> B["Recycle Takeoff"]
+  B --> C["Recycle Control Valve"]
+  C --> D["Suction Return"]
+  E["Anti-Surge Signal"] --> F["Fast Actuator Response"]
+  F --> C`;
+    if (isSteam) return `graph LR
+  A["HP Steam"] --> B["Letdown Valve"]
+  B --> C["Desuperheater"]
+  D["Spray Water"] --> C
+  C --> E["Controlled Temperature Steam"]`;
+    if (isRefinery) return `graph LR
+  A["Upstream High DP Service"] --> B["Control Valve"]
+  B --> C{"Phase Change Risk"}
+  C -->|"Cavitation"| D["Trim Mitigation Review"]
+  C -->|"Flashing"| E["Material and Velocity Review"]
+  D --> F["Technical Response"]`;
+    return `graph LR
+  A["RFP Intake"] --> B["Technical Review"]
+  B --> C["Engineering Inputs"]
+  C --> D["QA and Compliance Check"]
+  D --> E["Commercial Review"]
+  E --> F["Proposal Submission"]`;
+  };
 
   const templates: Record<VisualizationType, string> = {
     architecture: `graph LR
@@ -324,7 +397,55 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   E --> F["Delivery"]`,
   };
 
-  const mermaidCode = sanitizeMermaidCode(templates[type] || templates.workflow);
+  let selectedTemplate = templates[type] || templates.workflow;
+  if (type === "architecture") selectedTemplate = severeArchitecture();
+  if (type === "process_flow") selectedTemplate = severeProcessFlow();
+  if (type === "engineering_dependency" && /calculation|validation|engineering basis|technical specification/.test(combined)) {
+    selectedTemplate = `graph TD
+  A["RFP Process Inputs"] --> B["Proposal-Stage Assumptions"]
+  B --> C["ISA IEC Sizing Review"]
+  B --> D["ASME and Materials Review"]
+  C --> E["Risk Flags"]
+  D --> E
+  E --> F["Qualified Engineer Validation"]
+  F --> G["Approved Proposal Response"]`;
+  }
+  if (type === "workflow" && /inspection|testing|itp|hold point/.test(combined)) {
+    selectedTemplate = `graph LR
+  A["ITP Review"] --> B["Material Traceability"]
+  B --> C["Hydrotest and Leakage Test"]
+  C --> D["Functional Stroke Test"]
+  D --> E["Witness or Hold Point"]
+  E --> F["Final Inspection Release"]`;
+  }
+  if (type === "workflow" && /qa\/qc|qa-qc|documentation|dossier|mdr|data book/.test(combined)) {
+    selectedTemplate = `graph LR
+  A["Document Register"] --> B["MTC and Traceability"]
+  B --> C["Inspection Records"]
+  C --> D["Test Certificates"]
+  D --> E["Engineering Review"]
+  E --> F["MDR Data Book Release"]`;
+  }
+  if (type === "tbe_matrix" && /datasheet/.test(combined)) {
+    selectedTemplate = `graph TD
+  A["RFP Tags"] --> B["Datasheet Fields"]
+  B --> C["Process Conditions"]
+  B --> D["Valve Configuration"]
+  B --> E["Actuator Accessories"]
+  C --> F["Engineer Review Status"]
+  D --> F
+  E --> F`;
+  }
+  if (type === "risk_tree" && /deviation|clarification/.test(combined)) {
+    selectedTemplate = `graph TD
+  A["Open Requirement"] --> B{"Clarification Needed"}
+  B -->|"Data Missing"| C["Client Query"]
+  B -->|"Exception Needed"| D["Deviation Register"]
+  C --> E["Engineering Review"]
+  D --> E
+  E --> F["Approved Proposal Position"]`;
+  }
+  const mermaidCode = sanitizeMermaidCode(selectedTemplate);
   return {
     type,
     title: `${safeTitle} - ${diagramTitle}`,

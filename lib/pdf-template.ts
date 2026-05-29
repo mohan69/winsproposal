@@ -3,6 +3,7 @@
  */
 
 import { getBestVisualizationType, type VisualizationType } from "@/lib/visualization-service";
+import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 
 interface PdfSection {
   sectionTitle: string;
@@ -307,7 +308,10 @@ export function generateProposalHtml(data: PdfData): string {
   const safeDisplayName = escapeHtml(displayName);
   const safeTitle = escapeHtml(data.title);
   const safeIndustry = escapeHtml(data.industry);
-  const safeTemplateType = escapeHtml(data.templateType);
+  const templateMetadata = parseProposalTemplateMetadata(data.templateType);
+  const safeTemplateType = escapeHtml(templateMetadata.template);
+  const safeApplication = escapeHtml(templateMetadata.application);
+  const safePackageType = escapeHtml(templateMetadata.packageType);
   const safeStatus = escapeHtml(data.status);
   const safeOrgLogoUrl = sanitizeImageUrl(data.orgLogoUrl);
   const safeSections = data.sections.map((section) => ({
@@ -474,6 +478,8 @@ export function generateProposalHtml(data: PdfData): string {
     <div class="cover-meta">
       <div><div class="label">Date</div>${date}</div>
       <div><div class="label">Template</div>${safeTemplateType}</div>
+      ${safeApplication ? `<div><div class="label">Application</div>${safeApplication}</div>` : ""}
+      ${safePackageType ? `<div><div class="label">Package</div>${safePackageType}</div>` : ""}
       <div><div class="label">Status</div>${safeStatus}</div>
       <div><div class="label">Industry</div>${safeIndustry}</div>
     </div>

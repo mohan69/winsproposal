@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Upload, FileText, Loader2, CheckCircle, AlertCircle,
-  List, ClipboardCheck, Target, FileBarChart, Zap, LayoutTemplate, Building2, Wrench,
+  List, ClipboardCheck, Target, FileBarChart, Zap, LayoutTemplate, Building2, Wrench, BrainCircuit, SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { TEMPLATES, VALVE_SUBTYPES, PUMP_SUBTYPES } from "@/lib/templates";
+import { inferRfpIntelligence, type RfpIntelligence } from "@/lib/severe-service-intelligence";
 import { GoNoGoPanel } from "./go-no-go-panel";
 
 export function UploadRfpClient() {
@@ -26,39 +27,14 @@ export function UploadRfpClient() {
   const [fileName, setFileName] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string>("General");
   const [subType, setSubType] = useState<string>("");
-  const [templateSuggestion, setTemplateSuggestion] = useState<{ template: string; application: string; confidence: string } | null>(null);
+  const [rfpIntelligence, setRfpIntelligence] = useState<RfpIntelligence | null>(null);
+  const [showAdvancedOverride, setShowAdvancedOverride] = useState(false);
   const [companySize, setCompanySize] = useState<string>("enterprise");
 
   // Determine which sub-types to show
   const showValveSubTypes = selectedTemplate === "valve-oem";
   const showPumpSubTypes = selectedTemplate === "pump-oem";
   const subTypeOptions = showValveSubTypes ? VALVE_SUBTYPES : showPumpSubTypes ? PUMP_SUBTYPES : [];
-
-  function inferTemplateSuggestion(data: any) {
-    const text = [
-      data?.title,
-      data?.summary,
-      data?.industry,
-      JSON.stringify(data?.requirements ?? []),
-      JSON.stringify(data?.lineItems ?? []),
-      JSON.stringify(data?.processConditions ?? {}),
-      JSON.stringify(data?.complianceRequirements ?? []),
-    ].filter(Boolean).join(" ").toLowerCase();
-
-    if (!/valve|trim|actuator|compressor recycle|anti[-\s]?surge|severe[-\s]?service|cavitation|flashing|steam conditioning|hydrogen|iec 60534|isa 75\.01/.test(text)) {
-      return null;
-    }
-    let application = "Severe-Service Control Valve";
-    if (/lng|compressor recycle|anti[-\s]?surge/.test(text)) application = "LNG Compressor Recycle / Anti-Surge";
-    else if (/steam conditioning|desuperheat/.test(text)) application = "Steam Conditioning";
-    else if (/hydrogen|h2/.test(text)) application = "Hydrogen Process Control Valve";
-    else if (/refinery|cavitation|flashing|nace/.test(text)) application = "Refinery Severe-Service Control Valve";
-    return {
-      template: "Severe-Service Control Valve Proposal",
-      application,
-      confidence: /compressor recycle|anti[-\s]?surge|steam conditioning|hydrogen|cavitation|flashing/.test(text) ? "High" : "Medium",
-    };
-  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e?.target?.files?.[0];
@@ -129,11 +105,7 @@ export function UploadRfpClient() {
       if (!parseRes?.ok) throw new Error(parseData?.error ?? "Parsing failed");
 
       setExtractedData(parseData?.extractedData ?? null);
-      const suggestion = inferTemplateSuggestion(parseData?.extractedData ?? null);
-      setTemplateSuggestion(suggestion);
-      if (suggestion && selectedTemplate === "General") {
-        setSelectedTemplate("valve-oem");
-      }
+      setRfpIntelligence(inferRfpIntelligence(parseData?.extractedData ?? null));
       toast.success("RFP parsed successfully!");
     } catch (err: any) {
       toast.error(err?.message ?? "Upload failed");
@@ -152,7 +124,12 @@ export function UploadRfpClient() {
       const response = await fetch("/api/proposals/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rfpId, templateType: selectedTemplate, companySize, subType: subType || undefined }),
+        body: JSON.stringify({
+          rfpId,
+          templateType: showAdvancedOverride ? selectedTemplate : "auto",
+          companySize,
+          subType: showAdvancedOverride ? (subType || undefined) : undefined,
+        }),
       });
 
       if (!response?.ok) {
@@ -252,54 +229,86 @@ export function UploadRfpClient() {
                   <p className="text-sm text-emerald-700">{extractedData?.title ?? "RFP"} • {extractedData?.industry ?? "General"}</p>
                 </div>
               </div>
-              {templateSuggestion && (
-                <div className="mb-3 rounded-lg border border-emerald-200 bg-white p-3 text-sm text-emerald-900">
-                  <span className="font-semibold">Suggested template:</span> {templateSuggestion.template}
-                  <span className="mx-2 text-emerald-700">•</span>
-                  <span className="font-semibold">Application:</span> {templateSuggestion.application}
-                  <span className="mx-2 text-emerald-700">•</span>
-                  <span className="font-semibold">Confidence:</span> {templateSuggestion.confidence}
+              {rfpIntelligence && (
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-white p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                      <BrainCircuit className="w-5 h-5 text-emerald-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <p className="font-semibold text-emerald-950">RFP Intelligence</p>
+                        <Badge variant="outline" className="border-emerald-300 text-emerald-800 capitalize">{rfpIntelligence.confidence} confidence</Badge>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-emerald-700 font-medium">Recommended template</p>
+                          <p className="text-emerald-950">{rfpIntelligence.templateName}</p>
+                        </div>
+                        <div>
+                          <p className="text-emerald-700 font-medium">Application</p>
+                          <p className="text-emerald-950">{rfpIntelligence.application}</p>
+                        </div>
+                        <div>
+                          <p className="text-emerald-700 font-medium">Valve / service type</p>
+                          <p className="text-emerald-950">{rfpIntelligence.valveType}</p>
+                        </div>
+                        <div>
+                          <p className="text-emerald-700 font-medium">Standards detected</p>
+                          <p className="text-emerald-950">{rfpIntelligence.standardsDetected.slice(0, 4).join(", ")}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {rfpIntelligence.recommendedEngineeringOutputs.slice(0, 5).map((output) => (
+                          <Badge key={output} variant="secondary" className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100">{output}</Badge>
+                        ))}
+                        <Badge variant="outline" className="border-emerald-300 text-emerald-800">{rfpIntelligence.recommendedSections.length} sections</Badge>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-              {/* Row 1: Template + Sub-Type */}
-              <div className="flex items-center gap-3 flex-wrap mb-2">
-                <div className="flex items-center gap-2">
-                  <LayoutTemplate className="w-4 h-4 text-emerald-700" />
-                  <span className="text-sm font-medium text-emerald-800">Template:</span>
-                  <Select value={selectedTemplate} onValueChange={(v) => { setSelectedTemplate(v); setSubType(""); }}>
-                    <SelectTrigger className="w-[220px] h-9 bg-white border-emerald-200">
-                      <SelectValue placeholder="Select template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="General">General Template</SelectItem>
-                      {TEMPLATES.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {subTypeOptions.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Wrench className="w-4 h-4 text-emerald-700" />
-                    <span className="text-sm font-medium text-emerald-800">Type:</span>
-                    <Select value={subType} onValueChange={setSubType}>
-                      <SelectTrigger className="w-[260px] h-9 bg-white border-emerald-200">
-                        <SelectValue placeholder={showValveSubTypes ? "Select valve type" : "Select pump type"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subTypeOptions.map((st) => (
-                          <SelectItem key={st.id} value={st.id}>
-                            {st.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              {showAdvancedOverride && (
+                <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 mb-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <LayoutTemplate className="w-4 h-4 text-emerald-700" />
+                      <span className="text-sm font-medium text-emerald-800">Template:</span>
+                      <Select value={selectedTemplate} onValueChange={(v) => { setSelectedTemplate(v); setSubType(""); }}>
+                        <SelectTrigger className="w-[220px] h-9 bg-white border-emerald-200">
+                          <SelectValue placeholder="Select template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="General">General Template</SelectItem>
+                          {TEMPLATES.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {subTypeOptions.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Wrench className="w-4 h-4 text-emerald-700" />
+                        <span className="text-sm font-medium text-emerald-800">Type:</span>
+                        <Select value={subType} onValueChange={setSubType}>
+                          <SelectTrigger className="w-[260px] h-9 bg-white border-emerald-200">
+                            <SelectValue placeholder={showValveSubTypes ? "Select valve type" : "Select pump type"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {subTypeOptions.map((st) => (
+                              <SelectItem key={st.id} value={st.id}>
+                                {st.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              {/* Row 2: Company Size + Generate */}
+                </div>
+              )}
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-emerald-700" />
@@ -317,11 +326,15 @@ export function UploadRfpClient() {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button type="button" variant="outline" onClick={() => setShowAdvancedOverride((value) => !value)} className="border-emerald-200 text-emerald-800">
+                  <SlidersHorizontal className="w-4 h-4 mr-2" />
+                  {showAdvancedOverride ? "Hide Override" : "Advanced Override"}
+                </Button>
                 <Button onClick={handleGenerate} disabled={generating} className="bg-emerald-600 hover:bg-emerald-700 text-white ml-auto">
                   {generating ? (
                     <><Loader2 className="w-4 h-4 animate-spin mr-2" />Generating ({progress}%)...</>
                   ) : (
-                    <><Zap className="w-4 h-4 mr-2" />Generate Proposal</>
+                    <><Zap className="w-4 h-4 mr-2" />Accept & Generate Proposal</>
                   )}
                 </Button>
               </div>

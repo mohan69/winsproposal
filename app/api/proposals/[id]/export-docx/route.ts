@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, type VisualizationType } from "@/lib/visualization-service";
+import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, BorderStyle, PageBreak, Header, Footer,
@@ -474,6 +475,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const brandColor = ((proposal.user as any)?.organization?.brandColor ?? "#1a365d").replace("#", "");
     const orgLogoUrl = (proposal.user as any)?.organization?.logoUrl ?? "";
     const companyName = proposal.user?.companyName ?? orgName ?? "WinsProposal";
+    const templateMetadata = parseProposalTemplateMetadata(proposal.templateType);
     const createdDate = proposal.createdAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
     // Fetch logo image if available
@@ -519,7 +521,17 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     // Subtitle
     docChildren.push(new Paragraph({
-      children: [new TextRun({ text: `${proposal.industry} \u2022 ${proposal.templateType} Template`, size: 24, color: "666666", font: FONT_BODY })],
+      children: [new TextRun({
+        text: [
+          templateMetadata.industry || proposal.industry,
+          templateMetadata.template,
+          templateMetadata.application,
+          templateMetadata.packageType,
+        ].filter(Boolean).join(" | "),
+        size: 24,
+        color: "666666",
+        font: FONT_BODY,
+      })],
       alignment: AlignmentType.CENTER,
       spacing: { after: 200 },
     }));
