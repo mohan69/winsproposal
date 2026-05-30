@@ -29,6 +29,7 @@ interface CompliancePdfItem {
 }
 
 interface PdfData {
+  proposalId?: string;
   title: string;
   industry: string;
   templateType: string;
@@ -138,8 +139,8 @@ function markdownToHtml(text: string): string {
 function getPdfDiagramSteps(type: VisualizationType): string[] {
   const stepMap: Record<VisualizationType, string[]> = {
     value_chain: ["Customer Scope", "Technical Fit", "Compliance Confidence", "Delivery Assurance", "Win Theme"],
-    architecture: ["Client Requirement", "System Package", "Technical Interfaces", "Controls and QA", "Integrated Offer"],
-    process_flow: ["Process Input", "Engineering", "Procurement", "Fabrication", "Commissioning"],
+    architecture: ["Customer Scope", "Package Basis", "Interface Review", "Controls Review", "Proposal Output"],
+    process_flow: ["Input Review", "Design Basis", "Supply Planning", "Build Review", "Commissioning Support"],
     workflow: ["RFP Intake", "Owner Assignment", "Technical Review", "Compliance Review", "Final Approval"],
     compliance_flow: ["RFP Clause", "Map Standard", "Attach Evidence", "Resolve Deviation", "Approval Closure"],
     kpi_dashboard: ["Bid Value", "Turnaround", "Compliance", "Vault Reuse", "Executive View"],
@@ -150,7 +151,7 @@ function getPdfDiagramSteps(type: VisualizationType): string[] {
     engineering_dependency: ["Client Datasheet", "Engineering Basis", "Calculations", "QA Review", "Proposal Pack"],
     flowchart: ["Start", "Review Inputs", "Prepare Response", "Validate", "Submit"],
     sequence: ["Client", "Sales", "Engineering", "QA", "Submission"],
-    pfd: ["Input", "Engineering", "Procurement", "Fabrication", "Delivery"],
+    pfd: ["Input Review", "Design Basis", "Supply Planning", "Build Review", "Delivery Review"],
   };
 
   return stepMap[type] ?? stepMap.workflow;
@@ -317,6 +318,7 @@ export function generateProposalHtml(data: PdfData): string {
   const safePackageType = escapeHtml(templateMetadata.packageType);
   const safeStatus = escapeHtml(data.status);
   const safeOrgLogoUrl = sanitizeImageUrl(data.orgLogoUrl);
+  const severeServiceExport = /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${data.templateType} ${data.industry} ${templateMetadata.application}`);
   const safeSections = data.sections.map((section) => ({
     ...section,
     sectionTitle: escapeHtml(section.sectionTitle),
@@ -339,6 +341,7 @@ export function generateProposalHtml(data: PdfData): string {
       const artifact = buildEngineeringArtifact({
         sectionTitle: section.sectionTitle,
         sectionId: section.id,
+        proposalId: data.proposalId,
         templateType: data.templateType,
         extractedData: data.extractedData,
       });
@@ -382,16 +385,18 @@ export function generateProposalHtml(data: PdfData): string {
     .map(
       (s, i) =>
         `<section id="section-${i + 1}" class="proposal-section">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid ${brandColor};">
-            <div style="background:${brandColor};color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${i + 1}</div>
-            <h2 style="font-size:16px;font-weight:700;color:${brandColor};margin:0;">${s.sectionTitle}</h2>
-            ${s.sourceType === "vault" ? '<span style="background:#d1fae5;color:#065f46;font-size:9px;padding:2px 8px;border-radius:10px;">From Vault</span>' : ''}
+          <div class="section-start-block">
+            <div class="section-heading-block" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid ${brandColor};">
+              <div style="background:${brandColor};color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${i + 1}</div>
+              <h2 style="font-size:16px;font-weight:700;color:${brandColor};margin:0;">${s.sectionTitle}</h2>
+              ${s.sourceType === "vault" ? '<span style="background:#d1fae5;color:#065f46;font-size:9px;padding:2px 8px;border-radius:10px;">From Vault</span>' : ''}
+            </div>
+            <div class="section-intro" style="font-size:11.5px;color:#1f2937;line-height:1.7;">
+              ${s.contentHtml}
+            </div>
+            ${s.artifactHtml}
           </div>
-          <div style="font-size:11.5px;color:#1f2937;line-height:1.7;">
-            ${s.contentHtml}
-          </div>
-          ${s.artifactHtml}
-          ${data.includeDiagrams !== false ? s.diagramHtml : ""}
+          ${data.includeDiagrams !== false && !s.artifactHtml && !severeServiceExport ? s.diagramHtml : ""}
         </section>`
     )
     .join("");
@@ -422,26 +427,58 @@ export function generateProposalHtml(data: PdfData): string {
     .toc-link { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
     .toc-link span:last-child { font-size:11px; color:#6b7280; flex-shrink:0; margin-left:8px; }
     .section-page { }
-    .proposal-section { break-inside:auto; page-break-inside:auto; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid #e5e7eb; }
+    .proposal-section { break-inside:auto; page-break-inside:auto; break-before:auto; page-break-before:auto; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid #e5e7eb; }
+    .section-start-block { break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
+    .section-heading-block { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+    .section-intro { break-after: avoid; page-break-after: avoid; orphans: 3; widows: 3; }
     .section-page p { text-align: left; margin: 4px 0; line-height: 1.7; }
     .section-page ul { text-align: left; }
     .section-page li { text-align: left; }
-    .diagram-block { margin-top: 20px; padding: 14px 12px 16px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fafc; page-break-inside: avoid; }
-    .engineering-artifact { margin: 14px 0 18px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; }
+    .diagram-block { margin-top: 20px; padding: 14px 12px 16px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
+    .engineering-artifact { margin: 14px 0 18px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
     .artifact-kicker { font-size: 8.5px; color: #1d4ed8; text-transform: uppercase; font-weight: 800; letter-spacing: .5px; }
-    .artifact-title { font-size: 12px; color: #111827; font-weight: 800; margin-top: 2px; }
+    .artifact-title { font-size: 12px; color: #111827; font-weight: 800; margin-top: 2px; break-after: avoid; page-break-after: avoid; }
     .artifact-meta { font-size: 9px; color: #6b7280; margin: 3px 0 8px; }
     .artifact-disclaimer { font-size: 9px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 7px 8px; margin: 8px 0; }
-    .artifact-table { width:100%; border-collapse:collapse; background:white; font-size:8.5px; margin:8px 0 12px; }
+    .artifact-table-title { font-size:9.5px; color:#111827; font-weight:800; margin:10px 0 4px; break-after: avoid; page-break-after: avoid; }
+    .artifact-table { width:100%; border-collapse:collapse; background:white; font-size:8.5px; margin:8px 0 12px; break-inside: avoid; page-break-inside: avoid; }
+    .artifact-table thead { display: table-header-group; break-after: avoid; page-break-after: avoid; }
+    .artifact-table tr { break-inside: avoid; page-break-inside: avoid; }
     .artifact-table th { background:#eff6ff; color:#111827; text-align:left; padding:6px; border:1px solid #cbd5e1; font-size:7.8px; }
     .artifact-table td { padding:6px; border:1px solid #d1d5db; vertical-align:top; }
-    .artifact-visual-card { background:white; border:1px solid #d1d5db; border-radius:8px; padding:9px; margin:8px 0; break-inside: avoid; page-break-inside: avoid; }
+    .artifact-visual-card { background:white; border:1px solid #d1d5db; border-radius:8px; padding:9px; margin:8px 0; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
     .artifact-visual-title { font-size:10px; font-weight:800; color:#111827; }
     .artifact-visual-type { font-size:8.5px; color:#6b7280; margin:2px 0 7px; }
     .artifact-node-row { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
     .artifact-node-wrap { display:flex; align-items:center; gap:5px; }
     .artifact-node { border:1px solid #bfdbfe; background:#f8fafc; border-radius:6px; padding:5px 7px; font-size:8.5px; font-weight:700; color:#1f2937; }
     .artifact-arrow { font-size:12px; font-weight:800; }
+    .artifact-diagram { border:1px solid #dbeafe; background:#f8fafc; border-radius:8px; padding:8px; margin-top:5px; break-inside: avoid; page-break-inside: avoid; }
+    .artifact-diagram-flow { display:flex; align-items:stretch; gap:5px; flex-wrap:wrap; }
+    .artifact-diagram-node { border:1px solid #bfdbfe; background:white; border-radius:7px; padding:7px 8px; font-size:8.5px; font-weight:800; color:#1f2937; min-height:30px; display:flex; align-items:center; justify-content:center; text-align:center; flex:1 1 92px; }
+    .artifact-diagram-node.primary { border-color:${brandColor}; background:#eff6ff; color:${brandColor}; }
+    .artifact-diagram-arrow { font-size:12px; font-weight:900; align-self:center; flex:0 0 auto; }
+    .artifact-diagram-support { display:flex; gap:7px; flex-wrap:wrap; margin-top:7px; padding-top:7px; border-top:1px dashed #cbd5e1; }
+    .artifact-diagram-feedback { border:1px dashed; border-radius:999px; background:white; padding:4px 8px; font-size:8px; font-weight:800; }
+    .artifact-diagram-annotations { display:grid; grid-template-columns:repeat(2,1fr); gap:4px; margin-top:7px; padding-top:7px; border-top:1px solid #e5e7eb; }
+    .artifact-diagram-annotations span { background:white; border-radius:5px; padding:4px 5px; font-size:7.6px; line-height:1.25; color:#4b5563; font-weight:700; }
+    .die-card { background:white; border:1px solid #cbd5e1; border-radius:8px; margin:10px 0 14px; overflow:hidden; break-inside: avoid; page-break-inside: avoid; }
+    .die-head { display:flex; justify-content:space-between; gap:10px; padding:9px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+    .die-kicker { color:${brandColor}; font-size:8px; font-weight:900; text-transform:uppercase; letter-spacing:.35px; }
+    .die-title { color:#0f172a; font-size:11px; font-weight:900; margin-top:2px; }
+    .die-subtitle { color:#475569; font-size:8.5px; line-height:1.35; margin-top:2px; }
+    .die-status { color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:999px; padding:4px 7px; height:max-content; font-size:7.5px; font-weight:800; }
+    .die-disclaimer { color:#92400e; background:#fffbeb; border-bottom:1px solid #fde68a; padding:6px 9px; font-size:8px; font-weight:700; line-height:1.35; }
+    .die-svg { width:100%; height:auto; display:block; background:white; }
+    .die-symbol-label { fill:#0f172a; font-size:9px; font-weight:800; text-anchor:middle; }
+    .die-symbol-tag { fill:${brandColor}; font-size:8.5px; font-weight:900; text-anchor:middle; }
+    .die-connector-label { fill:#475569; font-size:8px; font-weight:800; text-anchor:middle; }
+    .die-note { fill:#78350f; font-size:7px; font-weight:800; }
+    .die-title-block-text { fill:#334155; font-size:8px; font-weight:800; }
+    .die-meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; background:#f8fafc; border-top:1px solid #e2e8f0; }
+    .die-meta-grid div { background:white; border:1px solid #e2e8f0; border-radius:5px; padding:5px 6px; }
+    .die-meta-grid strong { display:block; color:#64748b; font-size:7px; text-transform:uppercase; margin-bottom:2px; }
+    .die-meta-grid span { display:block; color:#334155; font-size:8px; line-height:1.3; font-weight:700; }
     .diagram-title { font-size: 10px; color: #4b5563; margin-bottom: 12px; font-style: italic; }
     .diagram-flow { display: flex; align-items: stretch; justify-content: space-between; gap: 5px; }
     .diagram-step-wrap { display: flex; align-items: center; flex: 1; min-width: 0; }

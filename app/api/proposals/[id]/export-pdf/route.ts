@@ -70,6 +70,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     // Generate HTML
     const html = generateProposalHtml({
+      proposalId: proposal.id,
       title: proposal.title,
       industry: proposal.industry,
       templateType: proposal.templateType,

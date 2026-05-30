@@ -12,7 +12,7 @@ import {
   inferRfpIntelligence,
   selectRelevantSevereServiceVaultItems,
 } from "@/lib/severe-service-intelligence";
-import { artifactToMarkdown, buildEngineeringArtifact } from "@/lib/engineering-artifacts";
+import { buildEngineeringArtifact } from "@/lib/engineering-artifacts";
 
 function formatSectionInstructions(inference: ReturnType<typeof inferRfpIntelligence>, fallback: string) {
   if (!inference.isSevereServiceValve) return fallback;
@@ -37,7 +37,7 @@ function attachDeterministicEngineeringArtifacts(sections: any[], templateType: 
         : "This section provides structured proposal-stage calculation inputs, assumptions, missing data, risk flags, standards basis, and engineer validation checks.";
     return {
       ...section,
-      content: `${intro}\n\n${artifactToMarkdown(artifact)}`,
+      content: `${intro}\n\n${SEVERE_SERVICE_DISCLAIMER}`,
       sourceType: section?.sourceType === "vault" ? "vault" : "generated",
     };
   });

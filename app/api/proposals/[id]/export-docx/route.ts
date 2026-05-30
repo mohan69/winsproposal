@@ -7,7 +7,13 @@ import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, type VisualizationType } from "@/lib/visualization-service";
 import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
-import { buildEngineeringArtifact, type EngineeringArtifact } from "@/lib/engineering-artifacts";
+import {
+  buildEngineeringArtifact,
+  getProposalVisualSpec,
+  PROPOSAL_STAGE_VISUAL_DISCLAIMER,
+  type EngineeringArtifact,
+} from "@/lib/engineering-artifacts";
+import { drawingTypeLabel, type DrawingPackage } from "@/lib/drawing-intelligence";
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, BorderStyle, PageBreak, Header, Footer,
@@ -246,6 +252,7 @@ function docxLabelParagraph(label: string, brandColor: string): Paragraph {
     alignment: AlignmentType.CENTER,
     spacing: { before: 220, after: 120 },
     border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: brandColor } },
+    keepNext: true,
   });
 }
 
@@ -372,6 +379,10 @@ function buildRiskTreeDocx(brandColor: string): Table {
   });
 }
 
+function isSevereServiceProposal(proposal: any) {
+  return /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${proposal?.templateType ?? ""} ${proposal?.industry ?? ""}`);
+}
+
 function buildNativeDocxDiagram(section: any, proposal: any, brandColor: string): DocxBlock[] {
   const artifact = buildEngineeringArtifact({
     sectionTitle: section.sectionTitle,
@@ -381,6 +392,7 @@ function buildNativeDocxDiagram(section: any, proposal: any, brandColor: string)
     extractedData: (proposal as any).extractedDataForArtifacts,
   });
   if (artifact) return buildDocxArtifactBlocks(artifact, brandColor);
+  if (isSevereServiceProposal(proposal)) return [];
 
   const type = getBestVisualizationType(section.sectionTitle, section.content, {
     templateType: proposal.templateType,
@@ -439,43 +451,162 @@ function buildArtifactTableDocx(table: NonNullable<EngineeringArtifact["tables"]
   });
 }
 
+function buildEnhancedDrawingDocx(visual: NonNullable<EngineeringArtifact["visuals"]>[number], brandColor: string): Table {
+  const spec = getProposalVisualSpec(visual);
+  const nodes = spec.nodes;
+  const support = spec.support ?? [];
+  const annotations = spec.annotations ?? [];
+  const primary = spec.primary ?? "";
+  const width = Math.max(1200, Math.floor(9600 / nodes.length));
+  const rows = [
+    new TableRow({
+      children: nodes.map((node) => docxCell([
+        new Paragraph({
+          children: [docxText(node, { bold: true, color: node === primary ? brandColor : "1f2937", size: 15 })],
+          alignment: AlignmentType.CENTER,
+        }),
+      ], { width, shading: node === primary ? "EFF6FF" : "FFFFFF" })),
+    }),
+  ];
+  if (support.length > 0) {
+    rows.push(new TableRow({
+      children: [
+        docxCell([
+          new Paragraph({
+            children: [docxText(support.join(" | "), { bold: true, color: brandColor, size: SIZE_SMALL })],
+            alignment: AlignmentType.CENTER,
+          }),
+        ], { width: 9600, shading: "F8FAFC" }),
+      ],
+    }));
+  }
+  if (annotations.length > 0) {
+    rows.push(new TableRow({
+      children: [
+        docxCell([
+          new Paragraph({
+            children: [docxText(annotations.join(" | "), { color: "4b5563", size: 15 })],
+            alignment: AlignmentType.CENTER,
+          }),
+        ], { width: 9600, shading: "FFFFFF" }),
+      ],
+    }));
+  }
+  return new Table({ rows, width: { size: 9600, type: WidthType.DXA } });
+}
+
+function buildDrawingPackageDocx(drawing: DrawingPackage, brandColor: string): DocxBlock[] {
+  const symbolRows = [
+    new TableRow({
+      children: ["Symbol", "Tag", "Role"].map((header) => docxCell([
+        new Paragraph({ children: [docxText(header, { bold: true, color: "FFFFFF", size: 16 })] }),
+      ], { shading: brandColor })),
+    }),
+    ...drawing.symbols.map((symbol, index) => new TableRow({
+      children: [
+        docxCell([new Paragraph({ children: [docxText(symbol.label, { bold: true, color: "1f2937", size: 15 })] })], { shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+        docxCell([new Paragraph({ children: [docxText(symbol.tag ?? "-", { color: brandColor, size: 15 })] })], { shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+        docxCell([new Paragraph({ children: [docxText(symbol.kind.replace(/_/g, " "), { color: "4b5563", size: 15 })] })], { shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+      ],
+    })),
+  ];
+  const flowRows = [
+    new TableRow({
+      children: drawing.symbols.map((symbol) => docxCell([
+        new Paragraph({
+          children: [docxText(symbol.label, { bold: true, color: symbol.kind.includes("valve") ? brandColor : "111827", size: 14 })],
+          alignment: AlignmentType.CENTER,
+        }),
+        ...(symbol.tag ? [new Paragraph({ children: [docxText(symbol.tag, { bold: true, color: brandColor, size: 13 })], alignment: AlignmentType.CENTER })] : []),
+      ], { width: Math.max(1000, Math.floor(9600 / drawing.symbols.length)), shading: symbol.kind.includes("valve") ? "EFF6FF" : "FFFFFF" })),
+    }),
+  ];
+
+  return [
+    new Paragraph({
+      children: [docxText(drawing.title, { bold: true, color: brandColor, size: SIZE_BODY })],
+      spacing: { before: 100, after: 50 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(`${drawingTypeLabel(drawing.drawingType)} | ${drawing.reviewStatus.join(" - ")}`, { bold: true, color: "4b5563", size: SIZE_SMALL })],
+      spacing: { after: 60 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(drawing.disclaimer, { italics: true, color: "92400e", size: SIZE_SMALL })],
+      spacing: { after: 80 },
+      keepNext: true,
+    }),
+    new Table({ rows: flowRows, width: { size: 9600, type: WidthType.DXA } }),
+    new Paragraph({
+      children: [docxText(`Tags used: ${drawing.tagsUsed.join(", ") || "TBD"}`, { bold: true, color: "1f2937", size: SIZE_SMALL })],
+      spacing: { before: 80, after: 50 },
+      keepNext: true,
+    }),
+    new Table({ rows: symbolRows, width: { size: 9600, type: WidthType.DXA } }),
+    new Paragraph({
+      children: [docxText(`Engineering review notes: ${drawing.engineeringReviewNotes.join(" ")}`, { color: "4b5563", size: SIZE_SMALL })],
+      spacing: { before: 80, after: 40 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(`Standards-awareness notes: ${drawing.standardsAwareness.map((item) => item.label).join(" | ")}`, { color: "4b5563", size: SIZE_SMALL })],
+      spacing: { after: 160 },
+    }),
+  ];
+}
+
 function buildDocxArtifactBlocks(artifact: EngineeringArtifact, brandColor: string): DocxBlock[] {
   const blocks: DocxBlock[] = [
-    docxLabelParagraph(`${artifact.title} - Proposal-Grade Engineering Artifact`, brandColor),
+    docxLabelParagraph(`${artifact.title} - ${artifact.artifactType === "drawing_package" ? "Proposal-Grade Technical Visual" : "Proposal-Grade Engineering Artifact"}`, brandColor),
     new Paragraph({
       children: [docxText(`${artifact.applicationType} | ${artifact.renderedLayoutType.replace(/_/g, " ")}`, { color: "4b5563", size: SIZE_SMALL })],
       spacing: { after: 120 },
+      keepNext: true,
     }),
   ];
   if (artifact.disclaimer) {
     blocks.push(new Paragraph({
       children: [docxText(artifact.disclaimer, { italics: true, color: "92400e", size: SIZE_SMALL })],
       spacing: { after: 120 },
+      keepNext: artifact.artifactType === "drawing_package",
+    }));
+  }
+  if (artifact.artifactType === "drawing_package") {
+    blocks.push(new Paragraph({
+      children: [docxText(PROPOSAL_STAGE_VISUAL_DISCLAIMER, { italics: true, color: "92400e", size: SIZE_SMALL })],
+      spacing: { after: 120 },
+      keepNext: true,
     }));
   }
   for (const table of artifact.tables ?? []) {
+    if (table.title) {
+      blocks.push(new Paragraph({
+        children: [docxText(table.title, { bold: true, color: "111827", size: SIZE_BODY })],
+        spacing: { before: 80, after: 60 },
+        keepNext: true,
+      }));
+    }
     blocks.push(buildArtifactTableDocx(table, brandColor));
     blocks.push(new Paragraph({ spacing: { after: 160 } }));
   }
-  for (const visual of artifact.visuals ?? []) {
+  if ((artifact.drawingPackages ?? []).length > 0) {
+    for (const drawing of artifact.drawingPackages ?? []) {
+      blocks.push(...buildDrawingPackageDocx(drawing, brandColor));
+    }
+  } else for (const visual of artifact.visuals ?? []) {
     blocks.push(new Paragraph({
       children: [docxText(visual.title, { bold: true, color: brandColor, size: SIZE_BODY })],
       spacing: { before: 80, after: 40 },
+      keepNext: true,
     }));
     blocks.push(new Paragraph({
-      children: [docxText(visual.layoutType, { color: "4b5563", size: SIZE_SMALL })],
+      children: [docxText(getProposalVisualSpec(visual).visualLabel, { color: "4b5563", size: SIZE_SMALL })],
       spacing: { after: 50 },
+      keepNext: true,
     }));
-    blocks.push(new Table({
-      width: { size: 9600, type: WidthType.DXA },
-      rows: [
-        new TableRow({
-          children: visual.nodes.slice(0, 6).map((node) => docxCell([
-            new Paragraph({ children: [docxText(node, { bold: true, color: "1f2937", size: 15 })], alignment: AlignmentType.CENTER }),
-          ], { shading: "F8FAFC" })),
-        }),
-      ],
-    }));
+    blocks.push(buildEnhancedDrawingDocx(visual, brandColor));
   }
   blocks.push(new Paragraph({ spacing: { after: 220 } }));
   return blocks;
@@ -706,6 +837,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         border: {
           bottom: { style: BorderStyle.SINGLE, size: 3, color: brandColor },
         },
+        keepNext: true,
       }));
 
       // Source badge (clean text, no emoji)
@@ -721,6 +853,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         ],
         spacing: { after: 200 },
         alignment: AlignmentType.LEFT,
+        keepNext: true,
       }));
 
       // Section content
@@ -748,12 +881,14 @@ export async function GET(request: Request, { params }: { params: { id: string }
         heading: HeadingLevel.HEADING_1,
         spacing: { after: 120 },
         border: { bottom: { style: BorderStyle.SINGLE, size: 3, color: brandColor } },
+        keepNext: true,
       }));
 
       const checkedCount = checklist.filter((i: any) => i?.checked).length;
       docChildren.push(new Paragraph({
         children: [new TextRun({ text: `${checkedCount}/${checklist.length} items verified`, size: SIZE_BODY, color: "666666", font: FONT_BODY })],
         spacing: { after: 200 },
+        keepNext: true,
       }));
 
       // Compliance table
@@ -817,6 +952,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         heading: HeadingLevel.HEADING_1,
         spacing: { after: 120 },
         border: { bottom: { style: BorderStyle.SINGLE, size: 3, color: brandColor } },
+        keepNext: true,
       }));
       docChildren.push(new Paragraph({
         children: [new TextRun({ text: `${tbeData.lineItems.length} line items × ${tbeData.tags.length} evaluation tags`, size: SIZE_BODY, color: "666666", font: FONT_BODY })],
