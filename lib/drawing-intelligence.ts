@@ -630,6 +630,16 @@ export function renderDrawingPackageHtml(pkg: DrawingPackage, brandColor = "#1a3
       ${pkg.connectors.map(connector).join("")}
       ${pkg.symbols.map(symbol).join("")}
       ${pkg.annotations.map((item) => `<g><path d="M${item.x - 10} ${item.y - 12} h220 v36 h-220 z" fill="#fffbeb" stroke="#f59e0b" stroke-width="1"/><text x="${item.x}" y="${item.y + 3}" class="die-note">${escapeHtml(item.label)}</text></g>`).join("")}
+      <g class="die-legend">
+        <rect x="24" y="262" width="360" height="52" fill="#fff" stroke="#94a3b8"/>
+        <text x="34" y="280" class="die-title-block-text">LEGEND</text>
+        <line x1="92" y1="276" x2="132" y2="276" stroke="#111827" stroke-width="2.4" marker-end="url(#${markerId})"/>
+        <text x="140" y="280" class="die-title-block-text">process line</text>
+        <line x1="232" y1="276" x2="272" y2="276" stroke="${brandColor}" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#${markerId})"/>
+        <text x="280" y="280" class="die-title-block-text">signal line</text>
+        <rect x="34" y="290" width="42" height="14" rx="2" fill="#fff" stroke="${brandColor}" stroke-width="1.5"/>
+        <text x="84" y="301" class="die-title-block-text">proposal-grade symbol layout</text>
+      </g>
       <g class="die-title-block">
         <rect x="650" y="262" width="318" height="52" fill="#fff" stroke="#94a3b8"/>
         <text x="660" y="280" class="die-title-block-text">DWG: ${escapeHtml(pkg.titleBlock.drawingNo)}</text>

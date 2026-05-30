@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, type VisualizationType } from "@/lib/visualization-service";
-import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import {
   buildEngineeringArtifact,
   getProposalVisualSpec,
@@ -275,6 +275,63 @@ function buildKpiDashboardDocx(brandColor: string): Table {
       new TableRow({ children: [cells[2], cells[3]] }),
     ],
     width: { size: 9600, type: WidthType.DXA },
+  });
+}
+
+function buildRoiImpactDocx(extractedData: any, brandColor: string): Table {
+  const dashboard = extractedData?.dashboard ?? {};
+  const read = (keys: string[], fallback: string) => {
+    for (const key of keys) {
+      const value = dashboard?.[key] ?? extractedData?.[key];
+      if (value !== undefined && value !== null && String(value).trim()) return String(value);
+    }
+    return fallback;
+  };
+  const hoursSaved = read(["Engineering hours saved", "engineeringHoursSaved"], "28");
+  const reuse = read(["Reusable engineering content", "proposalReuse"], "58%");
+  const cycleReduction = read(["Proposal turnaround reduction", "cycleTimeReduction"], "44%");
+  const rows = [
+    ["ROI Metric", "Before", "After", "Impact"],
+    ["Proposal cycle time", "5.0 days", "2.8 days", `${cycleReduction} faster`],
+    ["Engineering hours", "64 hrs/bid", `${Math.max(18, 64 - (Number.parseInt(hoursSaved, 10) || 28))} hrs/bid`, `${hoursSaved} hrs saved`],
+    ["Compliance review", "14 hrs", "6 hrs", "8 hrs saved"],
+    ["Proposal reuse", "20%", reuse, "Controlled reuse"],
+    ["Bid throughput", "8 bids/month", "13 bids/month", "62% uplift"],
+    ["Annual productivity savings", "Manual baseline", "INR 34-42 lakh", "Indicative demo model"],
+  ];
+  return new Table({
+    width: { size: 9600, type: WidthType.DXA },
+    rows: rows.map((row, rowIndex) => new TableRow({
+      children: row.map((cell, cellIndex) => docxCell([
+        new Paragraph({
+          children: [docxText(cell, {
+            bold: rowIndex === 0 || cellIndex === 0,
+            color: rowIndex === 0 ? "FFFFFF" : cellIndex === 2 ? brandColor : "1f2937",
+            size: rowIndex === 0 ? 16 : 15,
+          })],
+        }),
+      ], { width: cellIndex === 0 ? 2800 : 2266, shading: rowIndex === 0 ? brandColor : rowIndex % 2 === 0 ? "F8FAFC" : "FFFFFF" })),
+    })),
+  });
+}
+
+function buildVaultCategoriesDocx(applicationId: string, brandColor: string): Table {
+  const categories = getSevereServiceVaultSourceCategories(applicationId);
+  return new Table({
+    width: { size: 9600, type: WidthType.DXA },
+    rows: [
+      new TableRow({
+        children: [docxCell([
+          new Paragraph({ children: [docxText("Knowledge Vault Source Categories", { bold: true, color: "FFFFFF", size: 16 })] }),
+        ], { width: 9600, shading: brandColor })],
+      }),
+      ...categories.map((item, index) => new TableRow({
+        children: [
+          docxCell([new Paragraph({ children: [docxText(item.label, { bold: true, color: brandColor, size: 15 })] })], { width: 2600, shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+          docxCell([new Paragraph({ children: [docxText(item.detail, { color: "4b5563", size: 15 })] })], { width: 7000, shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+        ],
+      })),
+    ],
   });
 }
 
@@ -680,6 +737,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const orgLogoUrl = (proposal.user as any)?.organization?.logoUrl ?? "";
     const companyName = proposal.user?.companyName ?? orgName ?? "WinsProposal";
     const templateMetadata = parseProposalTemplateMetadata(proposal.templateType);
+    const intelligence = inferRfpIntelligence(extractedData ?? {});
+    const severeServiceExport = /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
     const createdDate = proposal.createdAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
     // Fetch logo image if available
@@ -774,6 +833,24 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     docChildren.push(new Paragraph({ children: [new PageBreak()] }));
 
+    if (severeServiceExport) {
+      docChildren.push(new Paragraph({
+        children: [new TextRun({ text: "Executive ROI Impact Summary", bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING })],
+        spacing: { after: 120 },
+        border: { bottom: { style: BorderStyle.SINGLE, size: 3, color: brandColor } },
+      }));
+      docChildren.push(new Paragraph({
+        children: [docxText("Revenue intelligence view of proposal cycle time, engineering effort, compliance review time, reuse, bid throughput, and annual productivity savings.", { color: "4b5563", size: SIZE_BODY })],
+        spacing: { after: 160 },
+      }));
+      docChildren.push(buildRoiImpactDocx(extractedData, brandColor));
+      docChildren.push(new Paragraph({
+        children: [docxText("Proposal-stage productivity model. Commercial savings are indicative demo estimates and require customer-specific baseline validation.", { italics: true, color: "92400e", size: SIZE_SMALL })],
+        spacing: { before: 160 },
+      }));
+      docChildren.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+
     // --- TABLE OF CONTENTS (Manual) ---
     docChildren.push(new Paragraph({
       children: [new TextRun({ text: "Table of Contents", bold: true, size: 32, color: brandColor, font: FONT_HEADING })],
@@ -816,6 +893,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
         spacing: { after: 80 },
         border: { bottom: { style: BorderStyle.DOTTED, size: 1, color: "d1d5db" } },
       }));
+    }
+
+    if (severeServiceExport) {
+      docChildren.push(new Paragraph({ spacing: { before: 180, after: 80 } }));
+      docChildren.push(buildVaultCategoriesDocx(intelligence.applicationId, brandColor));
     }
 
     docChildren.push(new Paragraph({ children: [new PageBreak()] }));

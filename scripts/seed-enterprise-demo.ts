@@ -94,6 +94,13 @@ const demoOrgs: DemoOrg[] = [
     industry: Industry.EPC,
     users: makeUsers("zenith", ["Siddharth Shah", "Farah Khan", "Dev Malhotra", "Isha Banerjee"]),
   },
+  {
+    id: "demo-org-vectorloop-automation",
+    name: "VectorLoop Industrial Automation Pvt Ltd",
+    brandColor: "#4f46e5",
+    industry: Industry.General,
+    users: makeUsers("vectorloop", ["Neel Desai", "Ritika Saran", "Arjun Bedi", "Maya George"]),
+  },
 ];
 
 function makeUsers(orgSlug: string, names: string[]): DemoUser[] {
@@ -190,6 +197,33 @@ const rfps: DemoRfp[] = [
       ],
     },
   },
+  {
+    id: "demo-rfp-industrial-automation-control-system-upgrade",
+    filename: "DEMO_RFP_Industrial_Automation_Control_System_Upgrade.pdf",
+    ownerId: "demo-user-vectorloop-proposal-manager",
+    industry: Industry.General,
+    extractedData: {
+      title: "Industrial Automation Control System Upgrade",
+      customer: "Western Chemicals Manufacturing Complex",
+      industry: "Industrial Automation",
+      bidDueDate: "2026-07-09",
+      estimatedBidValue: "INR 9.6 Cr",
+      summary: "Automation upgrade package covering PLC/SCADA migration, control panels, instrumentation interfaces, FAT/SAT, cybersecurity review, documentation, training, and phased cutover support.",
+      requirements: [
+        { id: "IA-REQ-01", description: "PLC and SCADA migration for existing process units with minimal downtime and validated tag database conversion." },
+        { id: "IA-REQ-02", description: "Control panels, marshalling cabinets, network switches, power supplies, and operator workstation scope to be listed with exclusions." },
+        { id: "IA-REQ-03", description: "FAT, SAT, loop check support, backup/restore procedure, cybersecurity hardening checklist, and training deliverables required." },
+        { id: "IA-REQ-04", description: "Commercial offer shall identify delivery assumptions, software license exclusions, warranty basis, and optional AMC support." },
+      ],
+      complianceRequirements: ["IEC 61131 awareness", "ISA-95 awareness", "IEC 62443 awareness", "Client FAT/SAT procedure", "Project documentation matrix"],
+      evaluationCriteria: ["Technical methodology 35%", "Migration risk 25%", "Delivery and site support 20%", "Commercial value 20%"],
+      lineItems: [
+        { item: "PLC Migration Package", description: "Controller hardware, I/O migration, logic conversion, and engineering workstation configuration", quantity: 1, tag: "PLC-MIG-01" },
+        { item: "SCADA Upgrade", description: "HMI graphics, historian interface, alarm rationalization support, and operator workstation setup", quantity: 1, tag: "SCADA-UPG-01" },
+        { item: "FAT/SAT and Training", description: "Factory acceptance test, site acceptance support, loop check assistance, and operator training", quantity: 1, tag: "FAT-SAT-TRN" },
+      ],
+    },
+  },
 ];
 
 const knowledgeAssets = [
@@ -203,6 +237,9 @@ const knowledgeAssets = [
   ["Technical Specification - EPC Process Package", Industry.EPC, ["technical-specification", "epc", "process"], "The EPC process package shall define design basis, HMB, PFDs, P&IDs, equipment list, line list, instrument index, control philosophy, battery limits, interface register, deliverable matrix, review cycles, HAZOP actions, and IFC release criteria."],
   ["Engineering Response - Vendor Technical Bid Evaluation", Industry.EPC, ["engineering-response", "tbe", "procurement"], "Vendor TBE will compare bidder compliance by clause, datasheet value, inspection requirement, deviation, delivery, critical spares, documentation, and lifecycle risk. Recommendations will distinguish technically acceptable bids from bids requiring clarification or commercial loading."],
   ["Compliance Template - EPC Deviation Register", Industry.EPC, ["compliance-template", "deviation-register"], "Every deviation shall capture RFP clause, discipline owner, proposed exception, technical impact, schedule impact, commercial impact, mitigation, client clarification status, and final approval decision before management release."],
+  ["Technical Specification - Automation Migration", Industry.General, ["technical-specification", "automation", "plc", "scada"], "Automation migration proposals shall map PLC/SCADA scope, I/O count assumptions, graphics conversion, network architecture, cabinet scope, cutover constraints, FAT/SAT requirements, cybersecurity checklist, training, and support exclusions."],
+  ["Engineering Response - FAT and SAT Automation", Industry.General, ["engineering-response", "automation", "fat", "sat"], "FAT/SAT response shall include test protocol, simulation basis, tag database verification, alarm and interlock test coverage, backup/restore evidence, client witness points, issue log, and final acceptance records."],
+  ["Compliance Template - Automation Cybersecurity Review", Industry.General, ["compliance-template", "automation", "cybersecurity"], "Automation cybersecurity review shall capture user roles, network zoning, backup policy, patching assumptions, remote access restrictions, hardening checklist, license exclusions, and client IT approvals required before site deployment."],
   ["Dashboard Snapshot - Pilot KPI Baseline", Industry.General, ["dashboard", "kpi", "pilot"], "Pilot baseline: 8 proposals/month, 4.6 day average turnaround, 63% compliance completion before final review, 72 engineering hours per major bid, INR 42 Cr visible bid pipeline."],
   ["Dashboard Snapshot - Pilot KPI Target", Industry.General, ["dashboard", "kpi", "pilot"], "Pilot target: 22 proposals/month, 1.8 day average turnaround, 94% compliance completion before final review, 38 engineering hours per major bid, INR 156 Cr visible bid pipeline."],
 ] as const;
@@ -302,6 +339,38 @@ const proposals: DemoProposal[] = [
       { lineItemIndex: 1, tag: "TBE Method", responseText: "Vendor offers evaluated by datasheet compliance, deviations, delivery, inspection, documentation, and lifecycle risk." },
       { lineItemIndex: 1, tag: "Deviation", responseText: "No base deviation. Vendor deviations will be normalized in the TBE recommendation sheet." },
       { lineItemIndex: 2, tag: "Quality", responseText: "Fabrication includes NDT, hydrotest, painting, FAT, packing, and handover dossier." },
+    ],
+  },
+  {
+    id: "demo-proposal-industrial-automation-control-system-upgrade",
+    userId: "demo-user-vectorloop-proposal-manager",
+    rfpId: "demo-rfp-industrial-automation-control-system-upgrade",
+    title: "Completed Proposal - Industrial Automation Control System Upgrade",
+    industry: Industry.General,
+    templateType: "Industrial Automation",
+    winScore: 86,
+    companySize: CompanySize.enterprise,
+    approvalStatus: ApprovalStatus.pending_approval,
+    sections: [
+      { id: "demo-sec-auto-exec", title: "Executive Summary", sourceType: SourceType.vault, content: "VectorLoop Industrial Automation Pvt Ltd proposes a controlled PLC/SCADA migration package covering hardware, software engineering, cabinet scope, FAT/SAT, cybersecurity review, training, and phased cutover support for the chemical manufacturing complex." },
+      { id: "demo-sec-auto-technical", title: "Automation Migration Methodology", sourceType: SourceType.vault, content: "The approach maps existing I/O, logic, graphics, alarms, historian interfaces, and network dependencies before migration. FAT and SAT gates validate tag conversion, interlocks, alarms, backup/restore, and operator readiness before site cutover." },
+      { id: "demo-sec-auto-compliance", title: "Compliance Matrix Summary", sourceType: SourceType.generated, content: "Mandatory clauses reviewed: 31. Fully compliant: 27. Compliant with clarification: 4. Deviation requested: 0. Cybersecurity hardening, software license exclusions, and client IT approvals are flagged for final clarification." },
+      { id: "demo-sec-auto-commercial", title: "Commercial Summary", sourceType: SourceType.generated, content: "Pricing placeholder: INR 9.6 Cr subject to final license count, site support days, panel inspection scope, and AMC option. Delivery assumes approved I/O list, panel layout freeze, and client FAT attendance within agreed review windows." },
+      { id: "demo-sec-auto-dashboard", title: "Executive Dashboard Snapshot", sourceType: SourceType.generated, content: "Bid value visibility: INR 9.6 Cr. Proposal turnaround: 1.7 days versus 4.3 day baseline. Compliance completion: 91%. Vault reuse: 62%. Engineering effort avoided: 29 hours. Approval status: pending VP release." },
+    ],
+    checklistItems: [
+      { id: "plc-scope", label: "PLC hardware, I/O, logic migration, and workstation scope listed", standard: "Client automation specification", checked: true },
+      { id: "scada-scope", label: "SCADA graphics, alarm, historian, and operator workstation scope mapped", standard: "Project HMI procedure", checked: true },
+      { id: "fat-sat", label: "FAT, SAT, loop check, and training deliverables included", standard: "Client FAT/SAT procedure", checked: true },
+      { id: "cybersecurity", label: "Cybersecurity hardening and access assumptions flagged", standard: "IEC 62443 awareness / client IT policy", checked: false },
+      { id: "commercial", label: "Software license exclusions and optional AMC scope clarified", standard: "Commercial review", checked: false },
+    ],
+    tbeResponses: [
+      { lineItemIndex: 0, tag: "PLC Scope", responseText: "Controller hardware, I/O migration, logic conversion, and engineering workstation configuration included subject to final I/O list." },
+      { lineItemIndex: 0, tag: "Cutover", responseText: "Phased migration approach assumes client-approved shutdown window and backup/restore test before switchover." },
+      { lineItemIndex: 1, tag: "SCADA", responseText: "HMI graphics, historian interface, alarm support, and operator workstation setup included." },
+      { lineItemIndex: 1, tag: "Cybersecurity", responseText: "Hardening checklist and access assumptions included for client IT review; final policy exceptions require approval." },
+      { lineItemIndex: 2, tag: "Testing", responseText: "FAT, SAT support, loop check assistance, issue log, and operator training deliverables included." },
     ],
   },
 ];

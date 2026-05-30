@@ -3,7 +3,7 @@
  */
 
 import { getBestVisualizationType, type VisualizationType } from "@/lib/visualization-service";
-import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import { buildEngineeringArtifact, renderArtifactForPdf } from "@/lib/engineering-artifacts";
 
 interface PdfSection {
@@ -276,6 +276,49 @@ function buildGanttVisual(brandColor: string): string {
   </div>`;
 }
 
+function buildExecutiveRoiCoverHtml(data: PdfData, brandColor: string, safeApplication: string) {
+  const extracted = data.extractedData ?? {};
+  const intelligence = inferRfpIntelligence(extracted);
+  const dashboard = extracted?.dashboard ?? {};
+  const read = (keys: string[], fallback: string) => {
+    for (const key of keys) {
+      const value = dashboard?.[key] ?? extracted?.[key];
+      if (value !== undefined && value !== null && String(value).trim()) return String(value);
+    }
+    return fallback;
+  };
+  const hoursSaved = read(["Engineering hours saved", "engineeringHoursSaved"], intelligence.applicationId === "hydrogen-process-control" ? "28" : "32");
+  const reuse = read(["Reusable engineering content", "proposalReuse"], intelligence.applicationId === "hydrogen-process-control" ? "58%" : "64%");
+  const cycleReduction = read(["Proposal turnaround reduction", "cycleTimeReduction"], intelligence.applicationId === "hydrogen-process-control" ? "44%" : "50%");
+  const roiRows = [
+    ["Proposal cycle time", "5.0 days", "2.8 days", `${cycleReduction} faster first-pass proposal`],
+    ["Engineering hours saved", "64 hrs/bid", `${Math.max(18, 64 - (Number.parseInt(hoursSaved, 10) || 28))} hrs/bid`, `${hoursSaved} hours avoided`],
+    ["Compliance review time saved", "14 hrs", "6 hrs", "8 hours avoided"],
+    ["Proposal reuse", "20% ad hoc", reuse, "Controlled knowledge reuse"],
+    ["Bid throughput improvement", "8 bids/month", "13 bids/month", "62% higher capacity"],
+    ["Estimated annual productivity savings", "Manual baseline", "INR 34-42 lakh", "Engineering/compliance effort equivalent"],
+  ];
+  return `
+  <div class="page roi-page">
+    <div class="roi-kicker">Executive ROI Cover</div>
+    <h1>Revenue Intelligence Impact</h1>
+    <div class="roi-subtitle">${safeApplication || "Severe-service proposal demo"} | Customer-ready productivity view</div>
+    <div class="roi-grid">
+      ${roiRows.map(([label, before, after, impact]) => `
+        <div class="roi-card">
+          <div class="roi-label">${escapeHtml(label)}</div>
+          <div class="roi-values"><span>${escapeHtml(before)}</span><strong>${escapeHtml(after)}</strong></div>
+          <div class="roi-impact">${escapeHtml(impact)}</div>
+        </div>
+      `).join("")}
+    </div>
+    <div class="roi-note">
+      <strong>Executive readout:</strong> WinsProposal converts severe-service proposal work into a managed revenue workflow: RFP extraction, vault reuse, compliance mapping, TBE response, drawing intelligence, and export-ready governance evidence.
+    </div>
+    <div class="roi-disclaimer">Proposal-stage productivity model. Commercial savings are indicative demo estimates and require customer-specific baseline validation.</div>
+  </div>`;
+}
+
 function buildPdfDiagramHtml(sectionTitle: string, content: string, brandColor: string, type: VisualizationType): string {
   const steps = getPdfDiagramSteps(type).map(escapeHtml);
   const label = getPdfDiagramLabel(type);
@@ -318,7 +361,9 @@ export function generateProposalHtml(data: PdfData): string {
   const safePackageType = escapeHtml(templateMetadata.packageType);
   const safeStatus = escapeHtml(data.status);
   const safeOrgLogoUrl = sanitizeImageUrl(data.orgLogoUrl);
+  const intelligence = inferRfpIntelligence(data.extractedData ?? {});
   const severeServiceExport = /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${data.templateType} ${data.industry} ${templateMetadata.application}`);
+  const vaultCategories = getSevereServiceVaultSourceCategories(intelligence.applicationId);
   const safeSections = data.sections.map((section) => ({
     ...section,
     sectionTitle: escapeHtml(section.sectionTitle),
@@ -378,6 +423,12 @@ export function generateProposalHtml(data: PdfData): string {
         </a>`
     )
     .join("");
+  const roiCoverHtml = severeServiceExport ? buildExecutiveRoiCoverHtml(data, brandColor, safeApplication) : "";
+  const vaultCategoryHtml = severeServiceExport
+    ? `<div class="vault-category-grid">
+        ${vaultCategories.map((item) => `<div><strong>${escapeHtml(item.label)}</strong><span>${escapeHtml(item.detail)}</span></div>`).join("")}
+      </div>`
+    : "";
 
   // Build proposal body as a continuous document. The PDF engine paginates
   // naturally while artifact blocks stay near their section content.
@@ -422,6 +473,23 @@ export function generateProposalHtml(data: PdfData): string {
     .cover-meta { display: flex; gap: 30px; margin-top: auto; padding-top: 40px; border-top: 1px solid rgba(255,255,255,0.2); }
     .cover-meta div { font-size: 11px; }
     .cover-meta .label { opacity: 0.6; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .roi-page { background:#f8fafc; }
+    .roi-kicker { color:${brandColor}; text-transform:uppercase; letter-spacing:.8px; font-size:10px; font-weight:900; }
+    .roi-page h1 { color:#0f172a; font-size:28px; margin:8px 0 6px; }
+    .roi-subtitle { color:#475569; font-size:12px; margin-bottom:18px; }
+    .roi-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .roi-card { background:white; border:1px solid #cbd5e1; border-radius:8px; padding:12px; min-height:90px; }
+    .roi-label { color:#64748b; font-size:8.5px; font-weight:900; text-transform:uppercase; letter-spacing:.4px; }
+    .roi-values { display:flex; justify-content:space-between; align-items:flex-end; gap:10px; margin-top:8px; }
+    .roi-values span { color:#94a3b8; font-size:13px; text-decoration:line-through; }
+    .roi-values strong { color:${brandColor}; font-size:18px; }
+    .roi-impact { color:#334155; font-size:9.5px; font-weight:700; margin-top:8px; }
+    .roi-note { margin-top:18px; background:white; border-left:5px solid ${brandColor}; padding:12px; font-size:11px; line-height:1.55; color:#1f2937; }
+    .roi-disclaimer { margin-top:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:7px; padding:9px; font-size:9px; font-weight:700; }
+    .vault-category-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+    .vault-category-grid div { background:white; border:1px solid #bbf7d0; border-radius:7px; padding:8px; }
+    .vault-category-grid strong { display:block; color:#065f46; font-size:9px; margin-bottom:3px; }
+    .vault-category-grid span { display:block; color:#047857; font-size:8.5px; line-height:1.35; }
     .toc-page { }
     .toc-title { font-size: 20px; font-weight: 700; color: ${brandColor}; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid ${brandColor}; }
     .toc-link { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
@@ -553,6 +621,8 @@ export function generateProposalHtml(data: PdfData): string {
     </div>
   </div>
 
+  ${roiCoverHtml}
+
   <!-- TABLE OF CONTENTS -->
   <div class="page toc-page">
     <div class="toc-title">Table of Contents</div>
@@ -561,6 +631,7 @@ export function generateProposalHtml(data: PdfData): string {
       <div style="font-size:11px;color:#065f46;">
         <strong>Vault Coverage:</strong> ${data.vaultSectionsUsed} of ${data.sections.length} sections sourced from knowledge vault (${data.vaultDocumentsUsed} documents referenced)
       </div>
+      ${vaultCategoryHtml}
     </div>
 
   </div>

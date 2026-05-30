@@ -31,7 +31,10 @@ export type RfpIntelligence = {
 };
 
 export const SEVERE_SERVICE_SECTION_SPECS = [
+  ["Executive ROI Impact Summary", "Board-ready ROI page covering proposal cycle time, engineering hours saved, compliance review time saved, reuse, throughput, and annual productivity savings."],
   ["Executive Summary", "Management-ready summary of customer scope, severe-service response, differentiators, compliance confidence, and bid value drivers."],
+  ["RFP Extraction Intelligence", "Structured extraction view showing clauses, technical requirements, commercial requirements, missing inputs, clarification questions, and risk flags."],
+  ["Bid / No-Bid Scoring", "Weighted bid decision covering technical fit, commercial attractiveness, strategic fit, margin risk, delivery risk, and final score."],
   ["Project Background / Opportunity Context", "Project context, process objective, reliability drivers, customer pain points, and proposal opportunity framing."],
   ["Scope of Supply / Line Items", "Tag-wise scope, quantities, accessories, documentation scope, exclusions, assumptions, and package boundaries."],
   ["Process Conditions / Service Conditions", "Extracted process conditions, service envelope, fluid phase, pressures, temperature, leakage class, and missing data."],
@@ -48,6 +51,7 @@ export const SEVERE_SERVICE_SECTION_SPECS = [
   ["Deviations / Clarifications", "Clarification register, possible deviations, missing data, assumptions, client questions, impacts, and approval path."],
   ["Risk Assessment", "Severe-service risk register covering choked-flow/cavitation/flashing/noise, material compatibility, actuator response, inspection, schedule, and compliance risks."],
   ["Project Timeline & Delivery", "Execution schedule from drawing review through engineering validation, procurement, manufacturing, inspection, testing, dispatch, and document handover."],
+  ["Commercial Summary", "Commercial placeholder summary covering pricing basis, delivery assumptions, payment terms, warranty placeholders, exclusions, and commercial clarifications."],
   ["Executive Dashboard Snapshot", "Management KPI snapshot covering bid value, turnaround reduction, content reuse, compliance coverage, engineering hours saved, TBE completion, approvals, risk, and win probability."],
 ] as const;
 
@@ -284,10 +288,29 @@ export function getSevereServiceSectionSpecs() {
   return SEVERE_SERVICE_SECTION_SPECS.map(([title, description]) => ({ title, description }));
 }
 
+export function getSevereServiceVaultSourceCategories(applicationId?: SevereServiceApplicationId | string) {
+  const hydrogen = applicationId === "hydrogen-process-control";
+  const lng = applicationId === "lng-compressor-recycle";
+  return [
+    { label: "Prior similar proposal", detail: hydrogen ? "Hydrogen/export header severe-service proposal precedent" : lng ? "Compressor recycle / anti-surge proposal precedent" : "Severe-service control valve proposal precedent" },
+    { label: "Hydrogen service notes", detail: hydrogen ? "Material compatibility, embrittlement, sealing, and traceability notes" : "Special-service material and sealing notes where applicable" },
+    { label: "Severe-service valve guide", detail: "Trim, actuator, accessory, noise, leakage, and validation review basis" },
+    { label: "QA/QC checklist", detail: "ITP, QAP, MTC, PMI, leakage test, functional test, MDR, and release records" },
+    { label: "Compliance standards library", detail: "ISA/IEC sizing awareness, ASME rating awareness, project test references, NACE awareness where applicable" },
+  ];
+}
+
 function valueFromObject(item: any, keys: string[]) {
   for (const key of keys) {
     const value = item?.[key];
     if (value !== undefined && value !== null && String(value).trim()) return String(value);
+  }
+  const entries = Object.entries(item ?? {});
+  const normalizedKeys = keys.map((key) => normalizeText(key));
+  for (const [key, value] of entries) {
+    if (normalizedKeys.includes(normalizeText(key)) && value !== undefined && value !== null && String(value).trim()) {
+      return String(value);
+    }
   }
   return "";
 }
@@ -347,6 +370,109 @@ Risk flags: ${intelligence.keyRisks.join(", ")}.
 Engineering validation checklist: confirm final process cases, fluid properties, pressure class, valve sizing per ISA 75.01 / IEC 60534, pressure-temperature suitability per ASME B16.34, material restrictions including NACE MR0175 / ISO 15156 where applicable, actuator response/fail action, noise/vibration review, leakage class, inspection/test requirements, and approved company sizing-tool output.`;
 }
 
+function executiveRoiSummary(intelligence: RfpIntelligence, extractedData: any) {
+  const dashboard = extractedData?.dashboard ?? {};
+  const hoursSaved = valueFromObject(dashboard, ["Engineering hours saved", "engineeringHoursSaved"]) || (intelligence.applicationId === "hydrogen-process-control" ? "28" : "32");
+  const reuse = valueFromObject(dashboard, ["Reusable engineering content", "proposalReuse", "reuse"]) || (intelligence.applicationId === "hydrogen-process-control" ? "58%" : "64%");
+  const turnaround = valueFromObject(dashboard, ["Proposal turnaround reduction", "turnaroundReduction"]) || (intelligence.applicationId === "hydrogen-process-control" ? "44%" : "50%");
+  return `| ROI Metric | Baseline | WinsProposal Demo Output | Executive Impact |
+|---|---:|---:|---|
+| Proposal cycle time | 5.0 working days | 2.8 working days | ${turnaround} faster first-pass proposal pack |
+| Engineering hours per severe-service bid | 64 hours | ${Math.max(18, 64 - Number.parseInt(hoursSaved, 10) || 36)} hours | ${hoursSaved} hours saved per complex bid |
+| Compliance review time | 14 hours | 6 hours | 8 hours saved through clause and evidence mapping |
+| Proposal reuse | 20% ad hoc reuse | ${reuse} controlled reuse | Less rework and stronger technical consistency |
+| Bid throughput | 8 complex bids/month | 13 complex bids/month | 62% higher severe-service bid capacity |
+| Estimated annual productivity savings | Manual effort baseline | INR 34-42 lakh equivalent | Based on avoided engineering/compliance hours across recurring bid volume |
+
+Executive takeaway: WinsProposal turns the hydrogen severe-service RFP from a document drafting exercise into a managed revenue operation with measurable cycle-time, reuse, compliance, and engineering productivity signals.
+
+${SEVERE_SERVICE_DISCLAIMER}`;
+}
+
+function requirementText(item: any) {
+  if (typeof item === "string") return item;
+  return item?.description ?? item?.label ?? item?.requirement ?? item?.id ?? JSON.stringify(item);
+}
+
+function rfpExtractionIntelligence(intelligence: RfpIntelligence, extractedData: any) {
+  const requirements = Array.isArray(extractedData?.requirements) ? extractedData.requirements : [];
+  const technical = [
+    ...(requirements.map(requirementText).filter((text: string) => /technical|hydrogen|valve|material|leakage|trim|actuator|sizing|pressure|temperature|accessor|documentation/i.test(text)).slice(0, 8)),
+    ...(extractedData?.technicalSpecifications ?? []),
+  ].filter(Boolean).slice(0, 10);
+  const commercial = [
+    ...(requirements.map(requirementText).filter((text: string) => /commercial|delivery|payment|warranty|validity|price|schedule|liquidated|terms/i.test(text)).slice(0, 8)),
+    ...(extractedData?.deliveryRequirements ?? []),
+    ...(extractedData?.commercialAssumptions ?? []),
+  ].filter(Boolean).slice(0, 10);
+  const missing = intelligence.applicationId === "hydrogen-process-control"
+    ? ["Hydrogen purity and contaminant profile", "Final min/normal/max pressure cases by tag", "Client material restriction list", "Area classification and accessory certificate basis", "Leakage acceptance criteria by tag"]
+    : ["Final process cases", "Fluid composition and physical properties", "Outlet piping data/noise limits", "Accessory make/model preferences", "Witness and hold point requirements"];
+  const questions = missing.map((item) => `Please confirm ${item.toLowerCase()}.`);
+  const clauses = requirements.slice(0, 8).map((item: any, index: number) => `${item?.id ?? `Clause ${index + 1}`}: ${requirementText(item)}`);
+  return `| Extraction Category | Extracted Intelligence |
+|---|---|
+| Extracted clauses | ${(clauses.length ? clauses : ["RFP clauses parsed from uploaded package"]).join("; ")} |
+| Technical requirements | ${(technical.length ? technical : intelligence.recommendedEngineeringOutputs).join("; ")} |
+| Commercial requirements | ${(commercial.length ? commercial : ["Proposal validity, delivery assumptions, pricing placeholders, warranty placeholders, and exclusions require commercial confirmation"]).join("; ")} |
+| Missing inputs | ${missing.join("; ")} |
+| Clarification questions | ${questions.join("; ")} |
+| Risk flags | ${intelligence.keyRisks.join("; ")} |
+
+Extraction status: proposal-ready intelligence generated for demo review. Final commercial and engineering commitments require owner approval.`;
+}
+
+function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any) {
+  const hydrogen = intelligence.applicationId === "hydrogen-process-control";
+  const technical = hydrogen ? 88 : 86;
+  const commercial = hydrogen ? 78 : 80;
+  const strategic = hydrogen ? 92 : 88;
+  const marginRisk = hydrogen ? 72 : 74;
+  const deliveryRisk = hydrogen ? 76 : 75;
+  const finalScore = Math.round(technical * 0.3 + commercial * 0.2 + strategic * 0.2 + marginRisk * 0.15 + deliveryRisk * 0.15);
+  return `| Bid Dimension | Score | Rationale |
+|---|---:|---|
+| Technical fit | ${technical}/100 | Strong severe-service fit; ${intelligence.recommendedEngineeringOutputs.slice(0, 3).join(", ")} covered. |
+| Commercial attractiveness | ${commercial}/100 | Bid value and reuse are attractive; final pricing, exclusions, and payment terms still require commercial review. |
+| Strategic fit | ${strategic}/100 | Hydrogen and severe-service proposal capability aligns with strategic industrial growth themes. |
+| Margin risk | ${marginRisk}/100 | Specialty trim, accessories, testing, and documentation can affect margin until final scope freeze. |
+| Delivery risk | ${deliveryRisk}/100 | Schedule is feasible if drawing review, long-lead items, and witness points are confirmed early. |
+| Final bid score | ${finalScore}/100 | Recommendation: ${finalScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}. |
+
+Bid governance note: score is a proposal-stage decision aid, not an approval record.`;
+}
+
+function commercialSummary(intelligence: RfpIntelligence, extractedData: any) {
+  const bidValue = extractedData?.estimatedBidValue ?? extractedData?.bidValue ?? "Pricing placeholder - to be finalized by commercial team";
+  return `| Commercial Item | Proposal-Stage Position |
+|---|---|
+| Pricing placeholder | ${bidValue}; itemized pricing to be finalized by tag, accessory package, inspection scope, and documentation scope. |
+| Delivery assumptions | Drawing submission, client review cycle, material procurement, manufacturing, inspection/testing, and dispatch milestones assumed subject to final schedule agreement. |
+| Payment terms placeholder | To be confirmed by commercial team; align with customer payment milestones and internal credit policy. |
+| Warranty placeholder | Standard warranty basis to be confirmed; special severe-service warranty commitments require engineering and legal review. |
+| Exclusions | Site installation, commissioning labor, final process validation, certified sizing calculations, special tests not listed in the project ITP, and taxes/duties unless explicitly included. |
+| Commercial clarifications | Confirm Incoterms, delivery location, validity, LD exposure, bank guarantee/bid bond, inspection witness costs, and optional spares. |
+
+Commercial boundary: commercial placeholders are for customer-demo review only and must be replaced by approved commercial terms before submission.`;
+}
+
+function executiveDashboardSnapshot(intelligence: RfpIntelligence, extractedData: any) {
+  const dashboard = extractedData?.dashboard ?? {};
+  const win = valueFromObject(dashboard, ["Win probability score", "winProbability"]) || (intelligence.applicationId === "hydrogen-process-control" ? "87%" : "89%");
+  const compliance = valueFromObject(dashboard, ["Compliance coverage", "complianceCoverage"]) || "92%";
+  const reuse = valueFromObject(dashboard, ["Reusable engineering content", "reuse"]) || "58%";
+  const hours = valueFromObject(dashboard, ["Engineering hours saved", "engineeringHoursSaved"]) || "28";
+  return `| Executive Metric | Demo Value | Management Readout |
+|---|---:|---|
+| Win probability | ${win} | Strong fit if engineering and commercial assumptions close before submission. |
+| Compliance coverage | ${compliance} | Mandatory clauses mapped with remaining items routed for review. |
+| Risk status | Medium managed | Key risks: ${intelligence.keyRisks.slice(0, 5).join(", ")}. |
+| Engineering review pending items | 5 | Process cases, final sizing, material compatibility, leakage class, hazardous-area accessories. |
+| Proposal readiness score | 84/100 | Ready for proposal-demo review; final submission needs engineering and commercial sign-off. |
+| Vault reuse | ${reuse} | Knowledge-backed sections reduce drafting and review load. |
+| Engineering hours saved | ${hours} hours | Avoided repetitive datasheet, TBE, compliance, and drawing-prep work. |`;
+}
+
 function drawingGallery(intelligence: RfpIntelligence) {
   return [
     `${SEVERE_SERVICE_DISCLAIMER}`,
@@ -365,7 +491,10 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
   const existing = new Map((sections ?? []).map((section) => [normalizeText(section?.title ?? ""), section]));
   const lineItemRows = formatLineItemRows(extractedData);
   const sectionContent: Record<string, string> = {
+    "Executive ROI Impact Summary": executiveRoiSummary(intelligence, extractedData),
     "Executive Summary": `WinsProposal has classified this RFP as ${intelligence.application} and prepared the response as engineering proposal intelligence for severe-service control valves. The proposal response focuses on reducing proposal engineering effort, preserving application knowledge, improving compliance/TBE quality, and giving management a clear technical risk view.\n\n${SEVERE_SERVICE_DISCLAIMER}`,
+    "RFP Extraction Intelligence": rfpExtractionIntelligence(intelligence, extractedData),
+    "Bid / No-Bid Scoring": bidNoBidScoring(intelligence, extractedData),
     "Project Background / Opportunity Context": `The opportunity is aligned to ${intelligence.serviceType}. The proposal should emphasize process reliability, severe-service application knowledge, standards awareness, technical compliance, and controlled deviation handling.`,
     "Scope of Supply / Line Items": lineItemRows || "Tag-wise scope requires confirmation from the RFP line-item schedule. Proposal response should separate valve bodies, trim, actuators, accessories, documentation, inspection, testing, and exclusions.",
     "Process Conditions / Service Conditions": formatProcessConditions(extractedData),
@@ -382,7 +511,8 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
     "Deviations / Clarifications": "Clarifications should capture missing process cases, fluid properties, final pressure/temperature cases, leakage class confirmation, accessory make/model preferences, inspection witness points, delivery assumptions, and any commercial/schedule impacts.",
     "Risk Assessment": `Primary proposal-stage risk flags: ${intelligence.keyRisks.join(", ")}. Risks should be assigned owners, mitigation status, evidence, and management approval path where bid exposure is material.`,
     "Project Timeline & Delivery": "Indicative timeline should include RFP review, engineering validation, datasheet/GA drawing issue, client review, procurement, manufacturing, inspection/test, documentation compilation, dispatch, and final technical handover.",
-    "Executive Dashboard Snapshot": "Demo KPI snapshot: 40-60% proposal turnaround reduction, 50-70% reusable engineering content, 25-40 engineering hours saved per complex bid, 90%+ compliance coverage, faster approval workflow, TBE completion visibility, proposal risk score, and win probability score.",
+    "Commercial Summary": commercialSummary(intelligence, extractedData),
+    "Executive Dashboard Snapshot": executiveDashboardSnapshot(intelligence, extractedData),
   };
 
   return SEVERE_SERVICE_SECTION_SPECS.map(([title]) => {

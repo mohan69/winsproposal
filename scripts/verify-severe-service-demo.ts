@@ -45,6 +45,13 @@ const requiredExportStrings: Record<string, string[]> = {
   ],
 };
 
+const requiredBusinessExportStrings = [
+  "Executive ROI Impact Summary",
+  "RFP Extraction Intelligence",
+  "Bid / No-Bid Scoring",
+  "Commercial Summary",
+];
+
 function normalizeText(value: string) {
   return value
     .replace(/&amp;/g, "&")
@@ -71,6 +78,13 @@ function assertRequiredExportText(label: "Hydrogen" | "LNG", text: string, conte
   const normalized = normalizeText(text);
   for (const required of requiredExportStrings[label]) {
     assert(normalized.includes(required), `${context}: required drawing text missing: ${required}`);
+  }
+}
+
+function assertRequiredBusinessExportText(text: string, context: string) {
+  const normalized = normalizeText(text);
+  for (const required of requiredBusinessExportStrings) {
+    assert(normalized.includes(required), `${context}: required business intelligence section missing: ${required}`);
   }
 }
 
@@ -133,7 +147,11 @@ function validateStatic(label: string, rfp: any) {
   const sections = ensureSevereServiceSections([], intel, rfp);
   const titles = sections.map((section: any) => section.title);
   assert(!/General/i.test(intel.templateName), `${label}: template fell back to General`);
-  assert(titles.length >= 18, `${label}: expected 18+ sections`);
+  assert(titles.length >= 22, `${label}: expected 22+ sections`);
+  assert(titles.includes("Executive ROI Impact Summary"), `${label}: missing ROI impact summary`);
+  assert(titles.includes("RFP Extraction Intelligence"), `${label}: missing RFP extraction intelligence`);
+  assert(titles.includes("Bid / No-Bid Scoring"), `${label}: missing bid/no-bid scoring`);
+  assert(titles.includes("Commercial Summary"), `${label}: missing commercial summary`);
   assert(titles.includes("Datasheet Summary"), `${label}: missing datasheet summary`);
   assert(titles.includes("Preliminary Engineering Calculation Summary"), `${label}: missing calculation summary`);
   assert(titles.includes("Drawings and Technical Visuals"), `${label}: missing drawing package`);
@@ -274,6 +292,7 @@ async function runLiveExportCheck() {
       const text = kind === "docx" ? await extractDocxText(buffer) : extractPdfText(filePath);
       assertNoLegacyExportText(text, `${target.label}: ${kind.toUpperCase()} export`);
       assertRequiredExportText(target.label as "Hydrogen" | "LNG", text, `${target.label}: ${kind.toUpperCase()} export`);
+      assertRequiredBusinessExportText(text, `${target.label}: ${kind.toUpperCase()} export`);
     }
     results.push({ label: target.label, proposalId: proposal.id, templateType: proposal.templateType, sections: proposal.sections.length, vaultSectionsUsed: proposal.vaultSectionsUsed });
   }
@@ -281,6 +300,16 @@ async function runLiveExportCheck() {
 }
 
 async function main() {
+  const enterpriseSeed = await fs.readFile(path.resolve("scripts/seed-enterprise-demo.ts"), "utf8");
+  for (const expectedDemo of [
+    "FlowServe Industrial Valves Pvt Ltd",
+    "AquaDyn Pumps India Ltd",
+    "Zenith EPC Solutions",
+    "VectorLoop Industrial Automation Pvt Ltd",
+    "Industrial Automation Control System Upgrade",
+  ]) {
+    assert(enterpriseSeed.includes(expectedDemo), `Enterprise demo seed missing ${expectedDemo}`);
+  }
   const staticResults = {
     hydrogen: validateStatic("Hydrogen", hydrogenRfp),
     lng: validateStatic("LNG", lngRfp),

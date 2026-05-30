@@ -18,7 +18,7 @@ import { TbePanel } from "./tbe-panel";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { EngineeringDrawing } from "@/components/engineering-drawing";
 import { VISUALIZATION_TYPES, getBestVisualizationType, getFallbackVisualization, getVisualizationTypeMeta, type VisualizationType } from "@/lib/visualization-service";
-import { parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import {
   buildEngineeringArtifact,
   getProposalVisualSpec,
@@ -439,6 +439,8 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   const vaultSections = proposal?.sections?.filter((s: ProposalSection) => s?.sourceType === "vault") ?? [];
   const checkedCount = checklistItems.filter((i) => i.checked).length;
   const templateMetadata = parseProposalTemplateMetadata(proposal?.templateType);
+  const rfpIntelligence = inferRfpIntelligence(proposal?.rfp?.extractedData ?? {});
+  const vaultSourceCategories = getSevereServiceVaultSourceCategories(rfpIntelligence.applicationId);
   const displayTemplate = templateMetadata.template || proposal?.templateType || "General";
   const displayApplication = templateMetadata.application;
   const displayIndustry = templateMetadata.industry || proposal?.industry;
@@ -541,11 +543,23 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
       {/* Vault usage banner */}
       {((proposal?.vaultSectionsUsed ?? 0) > 0 || (vaultSections?.length ?? 0) > 0) && (
         <Card className="mb-6 border-emerald-200 bg-emerald-50 shadow-sm">
-          <CardContent className="p-4 flex items-center gap-3">
-            <Database className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span className="text-sm text-emerald-800">
-              Generated using <strong>{vaultSections?.length ?? proposal?.vaultSectionsUsed ?? 0}</strong> vault sections from <strong>{proposal?.vaultDocumentsUsed ?? 0}</strong> documents
-            </span>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Database className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span className="text-sm text-emerald-800">
+                Generated using <strong>{vaultSections?.length ?? proposal?.vaultSectionsUsed ?? 0}</strong> vault sections from <strong>{proposal?.vaultDocumentsUsed ?? 0}</strong> documents
+              </span>
+            </div>
+            {rfpIntelligence.isSevereServiceValve && (
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {vaultSourceCategories.map((category) => (
+                  <div key={category.label} className="rounded-md border border-emerald-200 bg-white/80 px-3 py-2">
+                    <div className="text-xs font-semibold text-emerald-900">{category.label}</div>
+                    <div className="mt-0.5 text-xs text-emerald-700">{category.detail}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

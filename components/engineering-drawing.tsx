@@ -168,6 +168,18 @@ export function EngineeringDrawing({
             </g>
           ))}
           <g>
+            <rect x="24" y="262" width="360" height="52" fill="#fff" stroke="#94a3b8" />
+            <text x="34" y="280" className="fill-slate-800 text-[10px] font-bold">
+              LEGEND
+            </text>
+            <line x1="92" y1="276" x2="132" y2="276" stroke="#111827" strokeWidth="2.4" markerEnd={`url(#${markerId})`} />
+            <text x="140" y="280" className="fill-slate-600 text-[9px] font-semibold">process line</text>
+            <line x1="232" y1="276" x2="272" y2="276" stroke={brandColor} strokeWidth="1.8" strokeDasharray="7 5" markerEnd={`url(#${markerId})`} />
+            <text x="280" y="280" className="fill-slate-600 text-[9px] font-semibold">signal line</text>
+            <rect x="34" y="290" width="42" height="14" rx="2" fill="#fff" stroke={brandColor} strokeWidth="1.5" />
+            <text x="84" y="301" className="fill-slate-600 text-[9px] font-semibold">proposal-grade symbol layout</text>
+          </g>
+          <g>
             <rect x="650" y="262" width="318" height="52" fill="#fff" stroke="#94a3b8" />
             <text x="660" y="280" className="fill-slate-800 text-[10px] font-bold">
               DWG: {drawing.titleBlock.drawingNo}
