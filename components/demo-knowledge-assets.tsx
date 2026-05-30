@@ -4,6 +4,16 @@ import { Database } from "lucide-react";
 import { DEMO_KNOWLEDGE_ASSETS } from "@/lib/demo-knowledge";
 
 export function DemoKnowledgeAssets() {
+  const sampleGroups = [
+    "Severe-service valve narratives",
+    "Compressor recycle response",
+    "Hydrogen compatibility response",
+    "Inspection/testing clauses",
+    "TBE sample responses",
+    "Deviation examples",
+    "QA/QC documentation examples",
+  ];
+
   return (
     <Card className="shadow-md border-slate-200">
       <CardContent className="p-6">
@@ -11,13 +21,20 @@ export function DemoKnowledgeAssets() {
           <div>
             <h2 className="font-display text-xl font-bold flex items-center gap-2">
               <Database className="w-5 h-5 text-primary" />
-              Demo Knowledge Base
+              Sample Knowledge Vault Assets
             </h2>
             <p className="text-sm text-muted-foreground">
-              Professional sample assets for EPC, valves, pumps, compliance, deviations, and engineering workflows.
+              Reusable example responses and clause libraries for engineering, compliance, technical bid evaluation, and proposal documentation.
             </p>
           </div>
           <Badge variant="outline" className="w-fit">{DEMO_KNOWLEDGE_ASSETS.length} assets</Badge>
+        </div>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {sampleGroups.map((group) => (
+            <Badge key={group} variant="secondary" className="text-xs">
+              {group}
+            </Badge>
+          ))}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           {DEMO_KNOWLEDGE_ASSETS.map((asset) => (

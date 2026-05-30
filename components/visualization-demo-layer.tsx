@@ -16,6 +16,21 @@ const DEMO_CONTEXT = {
   content: "RFP intake, engineering basis, P&ID review, API 600 valve datasheets, API 610 pump duty points, QA/QC inspection, deviation approval, and final proposal submission.",
 };
 
+const CUSTOMER_VISUALIZATION_LABELS: Partial<Record<VisualizationType, string>> = {
+  process_flow: "PFD-style drawing",
+  workflow: "P&ID-lite control loop",
+  architecture: "Valve package schematic",
+  compliance_flow: "Compliance matrix",
+  tbe_matrix: "TBE matrix",
+  kpi_dashboard: "KPI dashboard",
+  gantt: "Delivery schedule",
+  risk_tree: "Risk/deviation tree",
+};
+
+const CUSTOMER_VISUALIZATION_TYPES = VISUALIZATION_TYPES.filter((type) =>
+  Object.keys(CUSTOMER_VISUALIZATION_LABELS).includes(type.id)
+);
+
 export function VisualizationDemoLayer() {
   const [activeType, setActiveType] = useState<VisualizationType>("process_flow");
   const visualization = getFallbackVisualization(DEMO_CONTEXT, activeType);
@@ -27,16 +42,16 @@ export function VisualizationDemoLayer() {
           <div>
             <h2 className="font-display text-xl font-bold flex items-center gap-2">
               <Network className="w-5 h-5 text-primary" />
-              Visualization Engine Demo
+              Drawing & Visualization Intelligence Demo
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Mermaid-backed previews for EPC, valves, pumps, compliance, proposal lifecycle, and engineering dependencies.
+              Proposal-ready technical visuals for drawings, matrices, schedules, and executive review artifacts.
             </p>
           </div>
           <Badge variant="outline" className="w-fit">Export Safe</Badge>
         </div>
         <div className="flex flex-wrap gap-2 mb-4">
-          {VISUALIZATION_TYPES.map((type) => (
+          {CUSTOMER_VISUALIZATION_TYPES.map((type) => (
             <Button
               key={type.id}
               variant={activeType === type.id ? "default" : "outline"}
@@ -45,7 +60,7 @@ export function VisualizationDemoLayer() {
               title={type.description}
               onClick={() => setActiveType(type.id)}
             >
-              {type.label}
+              {CUSTOMER_VISUALIZATION_LABELS[type.id]}
             </Button>
           ))}
         </div>

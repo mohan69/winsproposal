@@ -16,6 +16,7 @@ import {
   ChevronRight,
   LayoutTemplate,
   Linkedin,
+  MonitorPlay,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/upload-rfp", label: "Upload RFP", icon: Upload },
   { href: "/proposals", label: "My Proposals", icon: FileText },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
+  { href: "/demo-center", label: "Demo Center", icon: MonitorPlay },
   { href: "/linkedin-content", label: "LinkedIn Content", icon: Linkedin },
   { href: "/team", label: "Team", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
