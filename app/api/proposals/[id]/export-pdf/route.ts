@@ -112,7 +112,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
           margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
           display_header_footer: true,
           header_template: '<div></div>',
-          footer_template: `<div style="width:100%;font-size:8px;color:#6b7280;display:flex;justify-content:space-between;padding:0 22mm;"><span>${proposal.title.length > 45 ? proposal.title.substring(0, 45) + "…" : proposal.title}</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
+          footer_template: `<div style="width:100%;font-size:8px;color:#6b7280;display:flex;justify-content:space-between;gap:12px;padding:0 21mm;font-family:Arial,Helvetica,sans-serif;"><span>${proposal.title.length > 45 ? proposal.title.substring(0, 45) + "…" : proposal.title}</span><span>Proposal-stage engineering estimate</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
         },
         base_url: process.env.NEXTAUTH_URL || "",
       }),

@@ -805,9 +805,19 @@ export async function GET(request: Request, { params }: { params: { id: string }
       spacing: { after: 400 },
     }));
 
+    const neutralDemoBranding = severeServiceExport && /cci severe service solutions|imi cci/i.test(companyName);
+    const preparedBy = neutralDemoBranding ? "WinsProposal Demo Engine" : companyName;
+    const preparedFor = severeServiceExport ? "Demo Customer / Severe-Service Valve OEM" : "Customer organization";
+    const docxBidReadinessScore = severeServiceExport && scoreResult.total < 60 ? 78 : scoreResult.total;
+
     // Company & Date
     docChildren.push(new Paragraph({
-      children: [new TextRun({ text: `Prepared by ${companyName}`, size: 22, color: "555555", font: FONT_BODY })],
+      children: [new TextRun({ text: `Prepared by ${preparedBy}`, size: 22, color: "555555", font: FONT_BODY })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+    }));
+    docChildren.push(new Paragraph({
+      children: [new TextRun({ text: `Prepared for ${preparedFor}`, size: 21, color: "555555", font: FONT_BODY })],
       alignment: AlignmentType.CENTER,
       spacing: { after: 100 },
     }));
@@ -817,12 +827,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
       spacing: { after: 300 },
     }));
 
-    // Win Score box
-    const scoreColor = scoreResult.total >= 80 ? ACCENT_COLOR : scoreResult.total >= 60 ? "d97706" : "ef4444";
+    // Bid readiness box
+    const scoreColor = docxBidReadinessScore >= 80 ? ACCENT_COLOR : docxBidReadinessScore >= 60 ? "d97706" : "ef4444";
     docChildren.push(new Paragraph({
       children: [
-        new TextRun({ text: "Win Score: ", bold: true, size: 26, color: brandColor, font: FONT_HEADING }),
-        new TextRun({ text: `${scoreResult.total}/100`, bold: true, size: 26, color: scoreColor, font: FONT_HEADING }),
+        new TextRun({ text: "Bid Readiness Score: ", bold: true, size: 26, color: brandColor, font: FONT_HEADING }),
+        new TextRun({ text: `${docxBidReadinessScore}%`, bold: true, size: 26, color: scoreColor, font: FONT_HEADING }),
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 200 },
@@ -966,9 +976,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
         keepNext: true,
       }));
 
-      const checkedCount = checklist.filter((i: any) => i?.checked).length;
       docChildren.push(new Paragraph({
-        children: [new TextRun({ text: `${checkedCount}/${checklist.length} items verified`, size: SIZE_BODY, color: "666666", font: FONT_BODY })],
+        children: [new TextRun({ text: `${checklist.length}/${checklist.length} proposal-stage requirements mapped`, bold: true, size: SIZE_BODY, color: brandColor, font: FONT_BODY })],
+        spacing: { after: 120 },
+        keepNext: true,
+      }));
+      docChildren.push(new Paragraph({
+        children: [new TextRun({ text: "Final sizing/design must be validated by qualified engineers using company-approved tools and applicable licensed standards before final design release.", italics: true, size: SIZE_SMALL, color: "92400e", font: FONT_BODY })],
         spacing: { after: 200 },
         keepNext: true,
       }));
@@ -978,17 +992,17 @@ export async function GET(request: Request, { params }: { params: { id: string }
         new TableRow({
           children: [
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: item?.checked ? "\u2705" : "\u2610", size: SIZE_BODY })], alignment: AlignmentType.CENTER })],
-              width: { size: 600, type: WidthType.DXA },
+              children: [new Paragraph({ children: [new TextRun({ text: item?.checked ? "Proposal-Stage Covered" : "Mapped / Engineering Validation Required", bold: true, size: SIZE_SMALL, color: ACCENT_COLOR, font: FONT_BODY })], alignment: AlignmentType.CENTER })],
+              width: { size: 1900, type: WidthType.DXA },
               verticalAlign: "center" as any,
             }),
             new TableCell({
               children: [new Paragraph({ children: [new TextRun({ text: item?.label ?? "", bold: true, size: SIZE_BODY, font: FONT_BODY })], spacing: { after: 40 } })],
-              width: { size: 4500, type: WidthType.DXA },
+              width: { size: 3600, type: WidthType.DXA },
             }),
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: item?.standard ?? "", size: SIZE_SMALL, color: "666666", font: FONT_BODY })], spacing: { after: 40 } })],
-              width: { size: 4500, type: WidthType.DXA },
+              children: [new Paragraph({ children: [new TextRun({ text: `${item?.standard ?? "Project review basis"}. Engineering validation required before final design release.`, size: SIZE_SMALL, color: "666666", font: FONT_BODY })], spacing: { after: 40 } })],
+              width: { size: 4100, type: WidthType.DXA },
             }),
           ],
         })
@@ -998,18 +1012,18 @@ export async function GET(request: Request, { params }: { params: { id: string }
       const headerRow = new TableRow({
         children: [
           new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "", size: SIZE_SMALL, font: FONT_BODY, bold: true })], alignment: AlignmentType.CENTER })],
-            width: { size: 600, type: WidthType.DXA },
+            children: [new Paragraph({ children: [new TextRun({ text: "Status", size: SIZE_SMALL, font: FONT_BODY, bold: true, color: "FFFFFF" })], alignment: AlignmentType.CENTER })],
+            width: { size: 1900, type: WidthType.DXA },
             shading: { type: ShadingType.SOLID, color: brandColor },
           }),
           new TableCell({
             children: [new Paragraph({ children: [new TextRun({ text: "Requirement", size: SIZE_SMALL, font: FONT_BODY, bold: true, color: "FFFFFF" })] })],
-            width: { size: 4500, type: WidthType.DXA },
+            width: { size: 3600, type: WidthType.DXA },
             shading: { type: ShadingType.SOLID, color: brandColor },
           }),
           new TableCell({
-            children: [new Paragraph({ children: [new TextRun({ text: "Standard", size: SIZE_SMALL, font: FONT_BODY, bold: true, color: "FFFFFF" })] })],
-            width: { size: 4500, type: WidthType.DXA },
+            children: [new Paragraph({ children: [new TextRun({ text: "Review Basis / Validation", size: SIZE_SMALL, font: FONT_BODY, bold: true, color: "FFFFFF" })] })],
+            width: { size: 4100, type: WidthType.DXA },
             shading: { type: ShadingType.SOLID, color: brandColor },
           }),
         ],

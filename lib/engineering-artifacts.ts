@@ -63,6 +63,44 @@ export type EngineeringArtifact = {
   disclaimer?: string;
 };
 
+const TITLE_ACRONYMS = new Set([
+  "API",
+  "ASME",
+  "DOCX",
+  "FAT",
+  "IEC",
+  "ISA",
+  "ITP",
+  "KPI",
+  "MDR",
+  "MTC",
+  "NACE",
+  "NDE",
+  "PDF",
+  "PFD",
+  "PID",
+  "PMI",
+  "QAP",
+  "QA",
+  "QC",
+  "TBE",
+]);
+
+export function formatArtifactTitle(title: string) {
+  return title
+    .replace(/[_-]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      if (/^qa\/qc$/i.test(word)) return "QA/QC";
+      if (/^p&id$/i.test(word)) return "P&ID";
+      const normalized = word.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (TITLE_ACRONYMS.has(normalized)) return normalized;
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
 function clean(value: unknown, fallback = "TBD") {
   const text = String(value ?? "").trim();
   return text || fallback;
@@ -423,7 +461,7 @@ function genericTable(type: EngineeringArtifactType, extractedData: any): Artifa
   if (type === "kpi_dashboard") {
     return { columns: ["Metric", "Demo Value"], rows: [["Turnaround reduction", "40-60%"], ["Reusable engineering content", "50-70%"], ["Engineering hours saved", "25-40 hours per complex bid"], ["Compliance coverage", "90%+"], ["TBE completion", "High visibility"]] };
   }
-  return { columns: ["Artifact", "Proposal-Stage Output"], rows: [[type.replace(/_/g, " "), "Proposal-stage engineering visual generated from extracted RFP requirements"]] };
+  return { columns: ["Artifact", "Proposal-Stage Output"], rows: [[formatArtifactTitle(type), "Proposal-stage engineering visual generated from extracted RFP requirements"]] };
 }
 
 export function buildEngineeringArtifact(params: {
@@ -483,7 +521,7 @@ export function buildEngineeringArtifact(params: {
   return {
     artifactType,
     applicationType,
-    title: artifactType.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()),
+    title: formatArtifactTitle(artifactType),
     sourceRfpReferences: sourceRefs,
     renderedLayoutType: "structured_artifact_table",
     tables: [genericTable(artifactType, extractedData)],

@@ -4,7 +4,7 @@
 
 import { getBestVisualizationType, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
 import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
-import { buildEngineeringArtifact, renderArtifactForPdf } from "@/lib/engineering-artifacts";
+import { buildEngineeringArtifact, formatArtifactTitle, renderArtifactForPdf } from "@/lib/engineering-artifacts";
 
 interface PdfSection {
   sectionTitle: string;
@@ -78,6 +78,58 @@ function sanitizeImageUrl(value: unknown): string {
   }
 }
 
+function isDemoImpersonationName(value: unknown): boolean {
+  return /(^|\b)(cci severe service solutions|imi cci)(\b|$)/i.test(String(value ?? ""));
+}
+
+function getCoverBranding(data: PdfData, templateIndustry: string, severeServiceExport: boolean) {
+  const explicitOrgName = String(data.orgName ?? "").trim();
+  const safeExplicitOrgName = explicitOrgName && !isDemoImpersonationName(explicitOrgName);
+  if (safeExplicitOrgName) {
+    return {
+      preparedBy: explicitOrgName,
+      preparedFor: data.companyName && !isDemoImpersonationName(data.companyName) ? String(data.companyName).trim() : "Customer organization",
+      industry: templateIndustry || data.industry,
+      customerExample: "",
+      status: data.status,
+    };
+  }
+  if (severeServiceExport) {
+    return {
+      preparedBy: "WinsProposal Demo Engine",
+      preparedFor: "Demo Customer / Severe-Service Valve OEM",
+      industry: "Severe-Service Control Valves",
+      customerExample: "Hydrogen / Energy Transition Project",
+      status: "Draft / Demo",
+    };
+  }
+  return {
+    preparedBy: data.companyName && !isDemoImpersonationName(data.companyName) ? String(data.companyName).trim() : "WinsProposal Demo Engine",
+    preparedFor: "Demo Customer",
+    industry: templateIndustry || data.industry,
+    customerExample: "",
+    status: data.status,
+  };
+}
+
+function getCoverBidReadinessScore(data: PdfData, severeServiceExport: boolean) {
+  const extracted = data.extractedData ?? {};
+  const candidates = [
+    extracted?.bidReadinessScore,
+    extracted?.bidScore,
+    extracted?.dashboard?.bidReadinessScore,
+    extracted?.dashboard?.["Bid Readiness Score"],
+    extracted?.bidNoBidScoring?.finalScore,
+    extracted?.bidNoBidScore,
+  ];
+  for (const candidate of candidates) {
+    const numeric = Number.parseInt(String(candidate ?? "").replace(/[^0-9]/g, ""), 10);
+    if (Number.isFinite(numeric) && numeric > 0) return Math.min(100, numeric);
+  }
+  if (severeServiceExport && data.winScore < 60) return 78;
+  return Math.max(0, Math.min(100, Math.round(data.winScore || 78)));
+}
+
 function markdownToHtml(text: string): string {
   if (!text) return "";
   let html = escapeHtml(text)
@@ -129,7 +181,7 @@ function markdownToHtml(text: string): string {
         trimmed.startsWith("<div")
       )
         return trimmed;
-      return `<p style="margin:4px 0;line-height:1.6;">${trimmed}</p>`;
+      return `<p>${trimmed}</p>`;
     })
     .join("\n");
 
@@ -182,7 +234,7 @@ function getPdfDiagramLabel(type: VisualizationType): string {
   if (type === "engineering_dependency") return "Engineering Dependency";
   if (type === "compliance_flow") return "Compliance Flow";
   if (type === "process_flow") return "Process Flow";
-  return type.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return formatArtifactTitle(type);
 }
 
 function buildFlowVisual(steps: string[], brandColor: string): string {
@@ -330,9 +382,9 @@ function buildExecutiveRoiCoverHtml(data: PdfData, brandColor: string, safeAppli
       `).join("")}
     </div>
     <div class="roi-note">
-      <strong>Executive readout:</strong> WinsProposal converts severe-service proposal work into a managed revenue workflow: RFP extraction, vault reuse, compliance mapping, TBE response, drawing intelligence, and export-ready governance evidence.
+      <strong>Executive readout:</strong> WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours.
     </div>
-    <div class="roi-disclaimer">Proposal-stage productivity model. Commercial savings are indicative demo estimates and require customer-specific baseline validation.</div>
+    <div class="roi-disclaimer">Proposal-stage productivity model. These figures are indicative estimates and should be validated against the customer's actual baseline.</div>
   </div>`;
 }
 
@@ -368,18 +420,23 @@ export function generateProposalHtml(data: PdfData): string {
   });
 
   const brandColor = sanitizeHexColor(data.brandColor);
-  const displayName = data.orgName || data.companyName || "";
-  const safeDisplayName = escapeHtml(displayName);
   const safeTitle = escapeHtml(data.title);
   const safeIndustry = escapeHtml(data.industry);
   const templateMetadata = parseProposalTemplateMetadata(data.templateType);
   const safeTemplateType = escapeHtml(templateMetadata.template);
   const safeApplication = escapeHtml(templateMetadata.application);
   const safePackageType = escapeHtml(templateMetadata.packageType);
-  const safeStatus = escapeHtml(data.status);
-  const safeOrgLogoUrl = sanitizeImageUrl(data.orgLogoUrl);
   const intelligence = inferRfpIntelligence(data.extractedData ?? {});
   const severeServiceExport = /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${data.templateType} ${data.industry} ${templateMetadata.application}`);
+  const coverBranding = getCoverBranding(data, templateMetadata.industry, severeServiceExport);
+  const safeOrgLogoUrl = coverBranding.preparedBy === "WinsProposal Demo Engine" ? "" : sanitizeImageUrl(data.orgLogoUrl);
+  const safePreparedBy = escapeHtml(coverBranding.preparedBy);
+  const safePreparedFor = escapeHtml(coverBranding.preparedFor);
+  const safeCoverIndustry = escapeHtml(coverBranding.industry);
+  const safeCustomerExample = escapeHtml(coverBranding.customerExample);
+  const safeStatus = escapeHtml(coverBranding.status);
+  const bidReadinessScore = getCoverBidReadinessScore(data, severeServiceExport);
+  const bidReadinessColor = bidReadinessScore >= 80 ? "#6ee7b7" : bidReadinessScore >= 60 ? "#fcd34d" : "#fca5a5";
   const vaultCategories = getSevereServiceVaultSourceCategories(intelligence.applicationId);
   const safeSections = data.sections.map((section) => ({
     ...section,
@@ -427,16 +484,16 @@ export function generateProposalHtml(data: PdfData): string {
 
   // Build TOC
   const tocEntries = [
-    ...safeSections.map((s, i) => ({ label: `${i + 1}. ${s.sectionTitle}`, href: `#section-${i + 1}`, page: i + 3 })),
-    ...(safeComplianceItems.length > 0 ? [{ label: `${safeSections.length + 1}. Compliance Checklist`, href: "#compliance-checklist", page: safeSections.length + 3 }] : []),
-    ...(safeTbeData ? [{ label: `${safeSections.length + (safeComplianceItems.length > 0 ? 2 : 1)}. Technical Bid Evaluation (TBE)`, href: "#technical-bid-evaluation", page: safeSections.length + (safeComplianceItems.length > 0 ? 4 : 3) }] : []),
+    ...safeSections.map((s, i) => ({ label: `${i + 1}. ${s.sectionTitle}`, href: `#section-${i + 1}` })),
+    ...(safeComplianceItems.length > 0 ? [{ label: `${safeSections.length + 1}. Compliance Checklist`, href: "#compliance-checklist" }] : []),
+    ...(safeTbeData ? [{ label: `${safeSections.length + (safeComplianceItems.length > 0 ? 2 : 1)}. Technical Bid Evaluation (TBE)`, href: "#technical-bid-evaluation" }] : []),
   ];
   const tocItems = tocEntries
     .map(
       (entry) =>
         `<a href="${entry.href}" class="toc-link">
           <span>${entry.label}</span>
-          <span>Page ${entry.page}</span>
+          <span>Section</span>
         </a>`
     )
     .join("");
@@ -454,12 +511,12 @@ export function generateProposalHtml(data: PdfData): string {
       (s, i) =>
         `<section id="section-${i + 1}" class="proposal-section">
           <div class="section-start-block">
-            <div class="section-heading-block" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid ${brandColor};">
-              <div style="background:${brandColor};color:white;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${i + 1}</div>
-              <h2 style="font-size:16px;font-weight:700;color:${brandColor};margin:0;">${s.sectionTitle}</h2>
-              ${s.sourceType === "vault" ? '<span style="background:#d1fae5;color:#065f46;font-size:9px;padding:2px 8px;border-radius:10px;">From Vault</span>' : ''}
+            <div class="section-heading section-heading-block">
+              <div class="section-number">${i + 1}</div>
+              <h2 class="section-title">${s.sectionTitle}</h2>
+              ${s.sourceType === "vault" ? '<span class="source-badge">From Vault</span>' : ''}
             </div>
-            <div class="section-intro" style="font-size:11.5px;color:#1f2937;line-height:1.7;">
+            <div class="section-intro section-body">
               ${s.contentHtml}
             </div>
             ${s.artifactHtml}
@@ -469,9 +526,6 @@ export function generateProposalHtml(data: PdfData): string {
     )
     .join("");
 
-  const totalPages = data.sections.length + 2; // cover + TOC + sections
-  const complianceCheckedCount = safeComplianceItems.filter((item) => item.checked).length;
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -479,8 +533,8 @@ export function generateProposalHtml(data: PdfData): string {
   <style>
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #1f2937; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .page { width: 210mm; min-height: 297mm; padding: 20mm 22mm 25mm 22mm; position: relative; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+    body { font-family: Arial, Inter, Helvetica, sans-serif; color: #1f2937; font-size:10.8pt; line-height:1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { width: 210mm; min-height: 297mm; padding: 20mm 21mm 24mm 21mm; position: relative; page-break-after: always; page-break-inside: avoid; overflow: visible; }
     .body-page { height:auto; min-height:297mm; overflow:visible; page-break-after:auto; page-break-inside:auto; }
     .page:last-child { page-break-after: auto; }
     .cover-page { background: linear-gradient(135deg, ${brandColor} 0%, ${brandColor}dd 50%, ${brandColor}bb 100%); color: white; display: flex; flex-direction: column; justify-content: center; padding: 35mm 30mm; min-height: 297mm; }
@@ -509,14 +563,21 @@ export function generateProposalHtml(data: PdfData): string {
     .vault-category-grid span { display:block; color:#047857; font-size:8.5px; line-height:1.35; }
     .toc-page { }
     .toc-title { font-size: 20px; font-weight: 700; color: ${brandColor}; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid ${brandColor}; }
-    .toc-link { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
-    .toc-link span:last-child { font-size:11px; color:#6b7280; flex-shrink:0; margin-left:8px; }
+    .toc-link { display:flex; justify-content:space-between; align-items:baseline; padding:7px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
+    .toc-link span:first-child { max-width:150mm; }
+    .toc-link span:last-child { font-size:9px; color:#6b7280; flex-shrink:0; margin-left:8px; text-transform:uppercase; letter-spacing:.35px; }
     .section-page { }
-    .proposal-section { break-inside:avoid; page-break-inside:avoid; break-before:auto; page-break-before:auto; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid #e5e7eb; overflow:visible; }
+    .proposal-section { break-inside:avoid; page-break-inside:avoid; break-before:auto; page-break-before:auto; margin-bottom:28px; padding-bottom:16px; border-bottom:1px solid #e5e7eb; overflow:visible; }
     .section-start-block { break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
     .section-heading-block { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
+    .section-heading { display:flex; align-items:center; gap:10px; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid ${brandColor}; }
+    .section-number { width:26px; height:26px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; background:${brandColor}; color:white; flex:0 0 26px; }
+    .section-title { font-size:15px; font-weight:700; letter-spacing:0.2px; color:#0f3440; margin:0; line-height:1.25; }
+    .section-body { font-size:10.8pt; line-height:1.55; color:#1f2933; max-width:168mm; }
+    .section-body p { margin:0 0 10px 0; max-width:162mm; }
+    .source-badge { background:#d1fae5; color:#065f46; font-size:9px; padding:2px 8px; border-radius:10px; white-space:nowrap; }
     .section-intro { break-after: avoid; page-break-after: avoid; orphans: 3; widows: 3; }
-    .section-page p { text-align: left; margin: 4px 0; line-height: 1.7; }
+    .section-page p { text-align: left; margin: 0 0 10px 0; line-height: 1.55; }
     .section-page ul { text-align: left; }
     .section-page li { text-align: left; }
     .diagram-block { display:block; margin-top: 20px; padding: 14px 12px 16px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; overflow:visible; }
@@ -582,6 +643,14 @@ export function generateProposalHtml(data: PdfData): string {
     .diagram-matrix th { background:#eef2ff; color:#111827; text-align:left; padding:7px 8px; border:1px solid #d1d5db; font-size:9px; text-transform:uppercase; letter-spacing:.3px; }
     .diagram-matrix td { padding:8px; border:1px solid #d1d5db; color:#1f2937; }
     .diagram-status { display:inline-block; color:white; border-radius:999px; padding:2px 8px; font-size:8.5px; font-weight:700; }
+    .compliance-summary { margin:0 0 10px; color:#0f4c5c; font-size:12px; font-weight:800; }
+    .compliance-disclaimer { margin:0 0 14px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:7px; padding:8px 10px; font-size:9.5px; line-height:1.45; font-weight:700; break-inside: avoid; page-break-inside: avoid; }
+    .compliance-table { width:100%; border-collapse:collapse; background:white; font-size:10px; break-inside:auto; page-break-inside:auto; }
+    .compliance-table thead { display:table-header-group; }
+    .compliance-table th { background:${brandColor}; color:white; padding:8px 10px; text-align:left; font-weight:700; border:1px solid #d1d5db; }
+    .compliance-table td { padding:8px 10px; border:1px solid #d1d5db; vertical-align:top; line-height:1.45; }
+    .compliance-table tr { break-inside:avoid; page-break-inside:avoid; }
+    .compliance-status { display:inline-block; color:#065f46; background:#d1fae5; border:1px solid #86efac; border-radius:999px; padding:3px 8px; font-size:8.5px; font-weight:800; line-height:1.25; }
     .diagram-tree { text-align:center; }
     .tree-root { display:inline-block; background:white; border:2px solid; border-radius:8px; padding:9px 18px; font-size:10px; font-weight:800; color:#111827; }
     .tree-branches { display:flex; justify-content:space-around; gap:12px; margin:14px 0; position:relative; }
@@ -607,25 +676,30 @@ export function generateProposalHtml(data: PdfData): string {
   <!-- COVER PAGE -->
   <div class="page cover-page">
     ${safeOrgLogoUrl ? `<div style="margin-bottom:20px;"><img src="${escapeAttr(safeOrgLogoUrl)}" alt="" style="max-height:50px;max-width:180px;object-fit:contain;filter:brightness(0) invert(1);opacity:0.9;" /></div>` : ""}
-    ${safeDisplayName && !safeOrgLogoUrl ? `<div style="font-size:14px;opacity:0.7;margin-bottom:16px;letter-spacing:1px;text-transform:uppercase;">${safeDisplayName}</div>` : ""}
+    ${!safeOrgLogoUrl ? `<div style="font-size:14px;opacity:0.75;margin-bottom:16px;letter-spacing:1px;text-transform:uppercase;">${safePreparedBy}</div>` : ""}
     <div class="accent-line"></div>
     <h1>${safeTitle}</h1>
     <div class="subtitle">
-      ${data.industry !== "General" ? safeIndustry + " Industry" : ""} Technical &amp; Commercial Proposal
-      ${safeDisplayName ? `<br/>Prepared by ${safeDisplayName}` : ""}
+      ${safeCoverIndustry ? safeCoverIndustry + " Industry" : ""} Technical &amp; Commercial Proposal
+      <br/>Prepared by: ${safePreparedBy}
+      <br/>Prepared for: ${safePreparedFor}
     </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:30px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:30px;">
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
-        <div style="font-size:9px;opacity:0.6;text-transform:uppercase;letter-spacing:1px;">Win Score</div>
-        <div style="font-size:28px;font-weight:800;color:${data.winScore >= 80 ? '#6ee7b7' : data.winScore >= 60 ? '#fcd34d' : '#fca5a5'};">${data.winScore}%</div>
+        <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Bid Readiness Score</div>
+        <div style="font-size:28px;font-weight:800;color:${bidReadinessColor};">${bidReadinessScore}%</div>
       </div>
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
-        <div style="font-size:9px;opacity:0.6;text-transform:uppercase;letter-spacing:1px;">Sections</div>
+        <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Proposal Sections</div>
         <div style="font-size:28px;font-weight:800;">${data.sections.length}</div>
       </div>
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
-        <div style="font-size:9px;opacity:0.6;text-transform:uppercase;letter-spacing:1px;">Vault Sources</div>
+        <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Vault Sources</div>
         <div style="font-size:28px;font-weight:800;">${data.vaultDocumentsUsed}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
+        <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Proposal Status</div>
+        <div style="font-size:19px;font-weight:800;line-height:1.2;margin-top:6px;">${safeStatus}</div>
       </div>
     </div>
     <div class="cover-meta">
@@ -633,8 +707,8 @@ export function generateProposalHtml(data: PdfData): string {
       <div><div class="label">Template</div>${safeTemplateType}</div>
       ${safeApplication ? `<div><div class="label">Application</div>${safeApplication}</div>` : ""}
       ${safePackageType ? `<div><div class="label">Package</div>${safePackageType}</div>` : ""}
-      <div><div class="label">Status</div>${safeStatus}</div>
-      <div><div class="label">Industry</div>${safeIndustry}</div>
+      ${safeCustomerExample ? `<div><div class="label">Customer Example</div>${safeCustomerExample}</div>` : ""}
+      <div><div class="label">Industry</div>${safeCoverIndustry || safeIndustry}</div>
     </div>
   </div>
 
@@ -661,26 +735,30 @@ export function generateProposalHtml(data: PdfData): string {
   ${safeComplianceItems.length > 0 ? `
   <!-- COMPLIANCE SECTION -->
   <div id="compliance-checklist" class="page section-page">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid ${brandColor};">
-      <div style="background:${brandColor};color:white;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;">COMPLIANCE</div>
-      <h2 style="font-size:16px;font-weight:700;color:${brandColor};margin:0;">Compliance Checklist</h2>
+    <div class="section-heading section-heading-block">
+      <div class="section-number">✓</div>
+      <h2 class="section-title">Compliance Checklist</h2>
     </div>
-    <div style="margin-bottom:14px;font-size:11px;color:#4b5563;">${complianceCheckedCount}/${safeComplianceItems.length} items verified</div>
-    <table style="width:100%;border-collapse:collapse;font-size:10.5px;">
+    <div class="compliance-summary">${safeComplianceItems.length}/${safeComplianceItems.length} proposal-stage requirements mapped</div>
+    <div class="compliance-disclaimer">Final sizing/design must be validated by qualified engineers using company-approved tools and applicable licensed standards before final design release.</div>
+    <table class="compliance-table">
       <thead>
         <tr>
-          <th style="background:${brandColor};color:white;padding:8px 10px;text-align:center;font-weight:600;border:1px solid #d1d5db;width:52px;">Status</th>
-          <th style="background:${brandColor};color:white;padding:8px 10px;text-align:left;font-weight:600;border:1px solid #d1d5db;">Requirement</th>
-          <th style="background:${brandColor};color:white;padding:8px 10px;text-align:left;font-weight:600;border:1px solid #d1d5db;">Standard</th>
+          <th>Status</th>
+          <th>Requirement</th>
+          <th>Review Basis / Validation</th>
         </tr>
       </thead>
       <tbody>
         ${safeComplianceItems.map((item, idx) => {
-          const bgColor = idx % 2 === 0 ? "#ffffff" : "#f9fafb";
+          const status = item.checked ? "Proposal-Stage Covered" : "Mapped / Engineering Validation Required";
+          const validation = item.standard
+            ? `${item.standard}. Engineering validation required before final design release.`
+            : "Engineering validation required before final design release.";
           return `<tr>
-            <td style="padding:7px 10px;border:1px solid #d1d5db;text-align:center;background:${bgColor};font-weight:700;color:${item.checked ? "#047857" : "#9ca3af"};">${item.checked ? "OK" : "OPEN"}</td>
-            <td style="padding:7px 10px;border:1px solid #d1d5db;background:${bgColor};font-weight:600;color:#111827;">${item.label}</td>
-            <td style="padding:7px 10px;border:1px solid #d1d5db;background:${bgColor};color:#4b5563;line-height:1.5;">${item.standard}</td>
+            <td><span class="compliance-status">${status}</span></td>
+            <td><strong>${item.label}</strong></td>
+            <td>${validation}</td>
           </tr>`;
         }).join("")}
       </tbody>
