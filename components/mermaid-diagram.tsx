@@ -56,9 +56,13 @@ export function MermaidDiagram({ chart, title }: MermaidDiagramProps) {
   }, [chart]);
 
   return (
-    <div className={`border rounded-lg bg-white overflow-hidden transition-all ${
+    <div
+      className={`printable-diagram border rounded-lg bg-white overflow-hidden transition-all ${
       expanded ? "fixed inset-4 z-50 shadow-2xl" : ""
-    }`}>
+    }`}
+      data-print-diagram="true"
+      data-mermaid-ready={!loading && !error ? "true" : "false"}
+    >
       {expanded && (
         <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setExpanded(false)} />
       )}
@@ -71,12 +75,12 @@ export function MermaidDiagram({ chart, title }: MermaidDiagramProps) {
             variant="ghost"
             size="sm"
             onClick={() => setExpanded(!expanded)}
-            className="h-7 w-7 p-0"
+            className="h-7 w-7 p-0 print:hidden"
           >
             {expanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </Button>
         </div>
-        <div className={`p-4 overflow-auto ${expanded ? "flex-1" : "max-h-[400px]"}`}>
+        <div className={`printable-diagram-canvas p-4 overflow-auto ${expanded ? "flex-1" : "max-h-[400px]"}`}>
           {loading && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -91,7 +95,7 @@ export function MermaidDiagram({ chart, title }: MermaidDiagramProps) {
           )}
           <div
             ref={containerRef}
-            className="flex justify-center [&_svg]:max-w-full"
+            className="printable-diagram-svg flex justify-center [&_svg]:max-w-full"
             style={{ display: loading || error ? "none" : "flex" }}
           />
         </div>

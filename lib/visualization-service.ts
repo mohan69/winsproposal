@@ -134,6 +134,23 @@ export function getVisualizationTypeMeta(type: VisualizationType) {
   return VISUALIZATION_TYPES.find((item) => item.id === normalizeVisualizationType(type)) ?? VISUALIZATION_TYPES[0];
 }
 
+export function shouldRenderProposalDiagram(sectionTitle: string, content = "") {
+  const title = sectionTitle.toLowerCase();
+  const text = `${title} ${content.toLowerCase()}`;
+  return (
+    /executive summary|value proposition|proposal overview/.test(title) ||
+    /project background|opportunity context|project context|customer context/.test(title) ||
+    /scope of supply|scope of work|line items|supply scope|work breakdown/.test(title) ||
+    /technical compliance|technical specification response|technical response|requirement response/.test(title) ||
+    /commercial offer|commercial summary|pricing|payment terms|warranty|exclusions/.test(text) ||
+    /process conditions|service conditions|operating envelope|process data/.test(title) ||
+    /engineering basis|technical basis|severe-service application/.test(title) ||
+    /risk assessment|deviation|clarification/.test(title) ||
+    /project timeline|delivery schedule|schedule|timeline|gantt/.test(title) ||
+    /executive dashboard|dashboard|kpi|metric/.test(title)
+  );
+}
+
 export function getBestVisualizationType(
   sectionTitle: string,
   content: string,
@@ -144,10 +161,12 @@ export function getBestVisualizationType(
   const context = `${title} ${text} ${(metadata.templateType ?? "").toLowerCase()} ${(metadata.industry ?? "").toLowerCase()} ${(metadata.subType ?? "").toLowerCase()}`;
 
   if (/executive summary|value proposition|proposal overview/.test(title)) return "value_chain";
-  if (/project background|opportunity context|project context|customer context/.test(title)) return "value_chain";
+  if (/project background|opportunity context|project context|customer context/.test(title)) return "process_flow";
   if (/scope of supply|scope of work|line items|supply scope|work breakdown/.test(title)) return "architecture";
   if (/process conditions|service conditions|operating envelope|process data/.test(title)) return "process_flow";
   if (/technical specification response|technical response|requirement response/.test(title)) return "engineering_dependency";
+  if (/technical compliance|technical specification response|technical response|requirement response/.test(title)) return "engineering_dependency";
+  if (/commercial offer|commercial summary|pricing|payment terms|warranty|exclusions/.test(title)) return "value_chain";
   if (/engineering basis|technical basis|compressor recycle|anti-surge|severe-service application/.test(title)) return "engineering_dependency";
   if (/preliminary engineering calculation|calculation summary|validation workflow|sizing basis/.test(title)) return "engineering_dependency";
   if (/valve configuration|trim|actuator|accessor|valve assembly/.test(title)) return "architecture";
@@ -233,6 +252,49 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   const isLng = /lng|compressor recycle|anti[-\s]?surge|\bcrv\b|fast[-\s]?response/.test(combined);
   const isSteam = /steam conditioning|desuperheat|spray water|thermal cycling/.test(combined);
   const isRefinery = /refinery|cavitation|flashing|nace|sour service/.test(combined);
+  const sectionSpecific = () => {
+    if (/executive summary|value proposition|proposal overview/.test(title.toLowerCase())) {
+      return `graph LR
+  A["Customer Requirement"] --> B["Technical Compliance"]
+  B --> C["Delivery Confidence"]
+  C --> D["Risk Reduction"]
+  D --> E["Commercial Value"]
+  E --> F["Win Theme"]`;
+    }
+    if (/project background|opportunity context|project context|customer context/.test(title.toLowerCase())) {
+      return `graph LR
+  A["Hydrogen Hub Project"] --> B["Process Criticality"]
+  B --> C["Severe Service Valve Requirement"]
+  C --> D["Compliance Standards"]
+  D --> E["OEM EPC Evaluation"]
+  E --> F["Bid Opportunity"]`;
+    }
+    if (/scope of supply|scope of work|line items|supply scope|work breakdown/.test(title.toLowerCase())) {
+      return `graph LR
+  A["RFP Scope"] --> B["Valve Package"]
+  B --> C["Actuator Accessories"]
+  C --> D["Documentation"]
+  D --> E["Inspection Testing"]
+  E --> F["Delivery"]`;
+    }
+    if (/technical compliance|technical specification response|technical response|requirement response/.test(title.toLowerCase())) {
+      return `graph LR
+  A["Requirement"] --> B["Design Selection"]
+  B --> C["Material Compatibility"]
+  C --> D["Standards Compliance"]
+  D --> E["TBE Response"]
+  E --> F["Exceptions"]`;
+    }
+    if (/commercial offer|commercial summary|pricing|payment terms|warranty|exclusions/.test(title.toLowerCase())) {
+      return `graph LR
+  A["Scope"] --> B["Cost Drivers"]
+  B --> C["Delivery Schedule"]
+  C --> D["Risk Allowance"]
+  D --> E["Price Justification"]
+  E --> F["Margin Protection"]`;
+    }
+    return "";
+  };
   const severeArchitecture = () => {
     if (isHydrogen) return `graph LR
   A["Hydrogen Source"] --> B["Isolation and Strainer"]
@@ -397,10 +459,11 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   E --> F["Delivery"]`,
   };
 
-  let selectedTemplate = templates[type] || templates.workflow;
-  if (type === "architecture") selectedTemplate = severeArchitecture();
-  if (type === "process_flow") selectedTemplate = severeProcessFlow();
-  if (type === "engineering_dependency" && /calculation|validation|engineering basis|technical specification/.test(combined)) {
+  const specificTemplate = sectionSpecific();
+  let selectedTemplate = specificTemplate || templates[type] || templates.workflow;
+  if (!specificTemplate && type === "architecture") selectedTemplate = severeArchitecture();
+  if (!specificTemplate && type === "process_flow") selectedTemplate = severeProcessFlow();
+  if (!specificTemplate && type === "engineering_dependency" && /calculation|validation|engineering basis|technical specification/.test(combined)) {
     selectedTemplate = `graph TD
   A["RFP Process Inputs"] --> B["Proposal-Stage Assumptions"]
   B --> C["ISA IEC Sizing Review"]
@@ -410,7 +473,7 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   E --> F["Qualified Engineer Validation"]
   F --> G["Approved Proposal Response"]`;
   }
-  if (type === "workflow" && /inspection|testing|itp|hold point/.test(combined)) {
+  if (!specificTemplate && type === "workflow" && /inspection|testing|itp|hold point/.test(combined)) {
     selectedTemplate = `graph LR
   A["ITP Review"] --> B["Material Traceability"]
   B --> C["Hydrotest and Leakage Test"]
@@ -418,7 +481,7 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   D --> E["Witness or Hold Point"]
   E --> F["Final Inspection Release"]`;
   }
-  if (type === "workflow" && /qa\/qc|qa-qc|documentation|dossier|mdr|data book/.test(combined)) {
+  if (!specificTemplate && type === "workflow" && /qa\/qc|qa-qc|documentation|dossier|mdr|data book/.test(combined)) {
     selectedTemplate = `graph LR
   A["Document Register"] --> B["MTC and Traceability"]
   B --> C["Inspection Records"]
@@ -426,7 +489,7 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   D --> E["Engineering Review"]
   E --> F["MDR Data Book Release"]`;
   }
-  if (type === "tbe_matrix" && /datasheet/.test(combined)) {
+  if (!specificTemplate && type === "tbe_matrix" && /datasheet/.test(combined)) {
     selectedTemplate = `graph TD
   A["RFP Tags"] --> B["Datasheet Fields"]
   B --> C["Process Conditions"]
@@ -436,7 +499,7 @@ export function getFallbackVisualization(context: VisualizationContext, type: Vi
   D --> F
   E --> F`;
   }
-  if (type === "risk_tree" && /deviation|clarification/.test(combined)) {
+  if (!specificTemplate && type === "risk_tree" && /deviation|clarification/.test(combined)) {
     selectedTemplate = `graph TD
   A["Open Requirement"] --> B{"Clarification Needed"}
   B -->|"Data Missing"| C["Client Query"]

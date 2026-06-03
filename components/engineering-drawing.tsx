@@ -109,7 +109,7 @@ export function EngineeringDrawing({
   const markerId = `arrow-${drawing.titleBlock.drawingNo.replace(/[^a-zA-Z0-9]/g, "-")}`;
 
   return (
-    <article className="rounded-lg border border-slate-300 bg-white shadow-sm">
+    <article className="printable-artifact-visual rounded-lg border border-slate-300 bg-white shadow-sm" data-print-artifact="true">
       <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

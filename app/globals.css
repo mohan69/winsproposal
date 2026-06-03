@@ -103,3 +103,133 @@
 [data-hydration-error] {
   display: none !important;
 }
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    max-height: none !important;
+  }
+
+  aside,
+  nav,
+  header,
+  [role="navigation"] {
+    display: none !important;
+  }
+
+  main,
+  main > * {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .proposal-print-root,
+  .proposal-print-root *,
+  .printable-diagram,
+  .printable-diagram *,
+  .printable-artifact,
+  .printable-artifact *,
+  .printable-artifact-visual,
+  .printable-artifact-visual * {
+    visibility: visible !important;
+  }
+
+  .proposal-print-root {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .proposal-print-root button,
+  .proposal-print-root input,
+  .proposal-print-root textarea,
+  .proposal-print-root [role="tablist"],
+  .proposal-print-root [role="tab"],
+  .proposal-print-root .lucide-edit-2,
+  .proposal-print-root .lucide-download,
+  .proposal-print-root .lucide-file-down,
+  .proposal-print-root .lucide-copy,
+  .proposal-print-root .lucide-git-branch {
+    display: none !important;
+  }
+
+  .proposal-print-root [class*="overflow-hidden"],
+  .proposal-print-root [class*="overflow-auto"],
+  .proposal-print-root [class*="overflow-y-auto"],
+  .proposal-print-root [class*="overflow-x-auto"],
+  .printable-diagram,
+  .printable-diagram-canvas,
+  .printable-artifact,
+  .printable-artifact-visual {
+    overflow: visible !important;
+  }
+
+  .proposal-print-section,
+  .printable-diagram-section,
+  .printable-diagram,
+  .printable-artifact,
+  .printable-artifact-visual {
+    display: block !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .printable-diagram {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    box-shadow: none !important;
+    margin-top: 10px !important;
+  }
+
+  .printable-diagram-canvas {
+    display: block !important;
+    padding: 10px !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .printable-diagram-svg {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .printable-diagram svg,
+  .printable-artifact svg,
+  .printable-artifact-visual svg {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 180px !important;
+    overflow: visible !important;
+  }
+
+  .printable-artifact table {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .print\:hidden,
+  .no-print {
+    display: none !important;
+  }
+}

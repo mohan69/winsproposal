@@ -11,6 +11,7 @@
     "seed:enterprise-demo": "tsx --require dotenv/config scripts/seed-enterprise-demo.ts",
     "seed:imi-cci-demo": "tsx --require dotenv/config scripts/seed-imi-cci-demo.ts",
     "check:severe-service-demo": "tsx scripts/check-severe-service-proposal-automation.ts",
+    "verify:proposal-print-readiness": "tsx scripts/verify-proposal-print-readiness.ts",
     "verify:severe-service-demo": "tsx scripts/verify-severe-service-demo.ts",
     "verify:production": "node scripts/verify-production.mjs",
     "verify:live": "node scripts/verify-production.mjs",

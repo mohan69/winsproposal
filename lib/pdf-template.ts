@@ -2,7 +2,7 @@
  * HTML template for PDF export of proposals
  */
 
-import { getBestVisualizationType, type VisualizationType } from "@/lib/visualization-service";
+import { getBestVisualizationType, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
 import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import { buildEngineeringArtifact, renderArtifactForPdf } from "@/lib/engineering-artifacts";
 
@@ -136,7 +136,24 @@ function markdownToHtml(text: string): string {
   return html;
 }
 
-function getPdfDiagramSteps(type: VisualizationType): string[] {
+function getPdfDiagramSteps(type: VisualizationType, sectionTitle = "", content = ""): string[] {
+  const title = sectionTitle.toLowerCase();
+  const combined = `${title} ${content.toLowerCase()}`;
+  if (/executive summary|value proposition|proposal overview/.test(title)) {
+    return ["Customer Requirement", "Technical Compliance", "Delivery Confidence", "Risk Reduction", "Commercial Value", "Win Theme"];
+  }
+  if (/project background|opportunity context|project context|customer context/.test(title)) {
+    return ["Hydrogen Hub Project", "Process Criticality", "Severe Service Valve Requirement", "Compliance Standards", "OEM/EPC Evaluation", "Bid Opportunity"];
+  }
+  if (/scope of supply|scope of work|line items|supply scope|work breakdown/.test(title)) {
+    return ["RFP Scope", "Valve Package", "Actuator / Accessories", "Documentation", "Inspection / Testing", "Delivery"];
+  }
+  if (/technical compliance|technical specification response|technical response|requirement response/.test(title)) {
+    return ["Requirement", "Design Selection", "Material Compatibility", "Standards Compliance", "TBE Response", "Exceptions"];
+  }
+  if (/commercial offer|commercial summary|pricing|payment terms|warranty|exclusions/.test(combined)) {
+    return ["Scope", "Cost Drivers", "Delivery Schedule", "Risk Allowance", "Price Justification", "Margin Protection"];
+  }
   const stepMap: Record<VisualizationType, string[]> = {
     value_chain: ["Customer Scope", "Technical Fit", "Compliance Confidence", "Delivery Assurance", "Win Theme"],
     architecture: ["Customer Scope", "Package Basis", "Interface Review", "Controls Review", "Proposal Output"],
@@ -320,7 +337,7 @@ function buildExecutiveRoiCoverHtml(data: PdfData, brandColor: string, safeAppli
 }
 
 function buildPdfDiagramHtml(sectionTitle: string, content: string, brandColor: string, type: VisualizationType): string {
-  const steps = getPdfDiagramSteps(type).map(escapeHtml);
+  const steps = getPdfDiagramSteps(type, sectionTitle, content).map(escapeHtml);
   const label = getPdfDiagramLabel(type);
   const visual = type === "kpi_dashboard"
     ? buildKpiDashboardVisual(brandColor)
@@ -447,7 +464,7 @@ export function generateProposalHtml(data: PdfData): string {
             </div>
             ${s.artifactHtml}
           </div>
-          ${data.includeDiagrams !== false && !s.artifactHtml && !severeServiceExport ? s.diagramHtml : ""}
+          ${data.includeDiagrams !== false && !s.artifactHtml && shouldRenderProposalDiagram(s.sectionTitle, s.content) ? s.diagramHtml : ""}
         </section>`
     )
     .join("");
@@ -495,15 +512,15 @@ export function generateProposalHtml(data: PdfData): string {
     .toc-link { display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
     .toc-link span:last-child { font-size:11px; color:#6b7280; flex-shrink:0; margin-left:8px; }
     .section-page { }
-    .proposal-section { break-inside:auto; page-break-inside:auto; break-before:auto; page-break-before:auto; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid #e5e7eb; }
+    .proposal-section { break-inside:avoid; page-break-inside:avoid; break-before:auto; page-break-before:auto; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid #e5e7eb; overflow:visible; }
     .section-start-block { break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
     .section-heading-block { break-after: avoid; page-break-after: avoid; break-inside: avoid; page-break-inside: avoid; }
     .section-intro { break-after: avoid; page-break-after: avoid; orphans: 3; widows: 3; }
     .section-page p { text-align: left; margin: 4px 0; line-height: 1.7; }
     .section-page ul { text-align: left; }
     .section-page li { text-align: left; }
-    .diagram-block { margin-top: 20px; padding: 14px 12px 16px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
-    .engineering-artifact { margin: 14px 0 18px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
+    .diagram-block { display:block; margin-top: 20px; padding: 14px 12px 16px; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; overflow:visible; }
+    .engineering-artifact { display:block; margin: 14px 0 18px; padding: 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; overflow:visible; }
     .artifact-kicker { font-size: 8.5px; color: #1d4ed8; text-transform: uppercase; font-weight: 800; letter-spacing: .5px; }
     .artifact-title { font-size: 12px; color: #111827; font-weight: 800; margin-top: 2px; break-after: avoid; page-break-after: avoid; }
     .artifact-meta { font-size: 9px; color: #6b7280; margin: 3px 0 8px; }
@@ -514,7 +531,7 @@ export function generateProposalHtml(data: PdfData): string {
     .artifact-table tr { break-inside: avoid; page-break-inside: avoid; }
     .artifact-table th { background:#eff6ff; color:#111827; text-align:left; padding:6px; border:1px solid #cbd5e1; font-size:7.8px; }
     .artifact-table td { padding:6px; border:1px solid #d1d5db; vertical-align:top; }
-    .artifact-visual-card { background:white; border:1px solid #d1d5db; border-radius:8px; padding:9px; margin:8px 0; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
+    .artifact-visual-card { display:block; background:white; border:1px solid #d1d5db; border-radius:8px; padding:9px; margin:8px 0; break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; overflow:visible; }
     .artifact-visual-title { font-size:10px; font-weight:800; color:#111827; }
     .artifact-visual-type { font-size:8.5px; color:#6b7280; margin:2px 0 7px; }
     .artifact-node-row { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
@@ -530,7 +547,7 @@ export function generateProposalHtml(data: PdfData): string {
     .artifact-diagram-feedback { border:1px dashed; border-radius:999px; background:white; padding:4px 8px; font-size:8px; font-weight:800; }
     .artifact-diagram-annotations { display:grid; grid-template-columns:repeat(2,1fr); gap:4px; margin-top:7px; padding-top:7px; border-top:1px solid #e5e7eb; }
     .artifact-diagram-annotations span { background:white; border-radius:5px; padding:4px 5px; font-size:7.6px; line-height:1.25; color:#4b5563; font-weight:700; }
-    .die-card { background:white; border:1px solid #cbd5e1; border-radius:8px; margin:10px 0 14px; overflow:hidden; break-inside: avoid; page-break-inside: avoid; }
+    .die-card { display:block; background:white; border:1px solid #cbd5e1; border-radius:8px; margin:10px 0 14px; overflow:visible; break-inside: avoid; page-break-inside: avoid; }
     .die-head { display:flex; justify-content:space-between; gap:10px; padding:9px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
     .die-kicker { color:${brandColor}; font-size:8px; font-weight:900; text-transform:uppercase; letter-spacing:.35px; }
     .die-title { color:#0f172a; font-size:11px; font-weight:900; margin-top:2px; }

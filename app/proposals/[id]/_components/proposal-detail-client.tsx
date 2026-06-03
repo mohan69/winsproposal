@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { TbePanel } from "./tbe-panel";
 import { MermaidDiagram } from "@/components/mermaid-diagram";
 import { EngineeringDrawing } from "@/components/engineering-drawing";
-import { VISUALIZATION_TYPES, getBestVisualizationType, getFallbackVisualization, getVisualizationTypeMeta, type VisualizationType } from "@/lib/visualization-service";
+import { VISUALIZATION_TYPES, getBestVisualizationType, getFallbackVisualization, getVisualizationTypeMeta, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
 import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import {
   buildEngineeringArtifact,
@@ -47,7 +47,7 @@ function EngineeringArtifactBlock({ artifact }: { artifact: EngineeringArtifact 
     const spec = getProposalVisualSpec(visual);
 
     return (
-      <div className="rounded-lg border border-blue-100 bg-slate-50 p-3">
+      <div className="printable-artifact-visual rounded-lg border border-blue-100 bg-slate-50 p-3">
         <div className="flex flex-wrap items-stretch gap-2">
           {spec.nodes.map((node, index) => (
             <div key={`${visual.title}-${node}`} className="flex min-w-[120px] flex-1 items-center gap-2">
@@ -80,7 +80,7 @@ function EngineeringArtifactBlock({ artifact }: { artifact: EngineeringArtifact 
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-blue-100 bg-slate-50/80 p-4">
+    <div className="printable-artifact mt-4 rounded-lg border border-blue-100 bg-slate-50/80 p-4" data-print-artifact="true">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">
@@ -447,7 +447,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
   const displayPackageType = templateMetadata.packageType;
 
   return (
-    <div className="p-4 md:p-8 max-w-[1200px] mx-auto">
+    <div className="proposal-print-root p-4 md:p-8 max-w-[1200px] mx-auto">
       <Button variant="ghost" onClick={() => router.push("/proposals")} className="mb-4">
         <ArrowLeft className="w-4 h-4 mr-2" /> Back to Proposals
       </Button>
@@ -732,9 +732,10 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
               templateType: proposal?.templateType,
               extractedData: proposal?.rfp?.extractedData,
             });
+            const showStandardDiagram = !artifact && shouldRenderProposalDiagram(section?.sectionTitle ?? "", section?.content ?? "");
 
             return (
-          <Card key={section?.id} className="shadow-sm">
+          <Card key={section?.id} className="proposal-print-section shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -780,7 +781,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
 
               {artifact && <EngineeringArtifactBlock artifact={artifact} />}
 
-              {!artifact && (
+              {showStandardDiagram && (
                 <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground">
                     Artifact visual: {getVisualizationTypeMeta(activeVisualizationType).label}
@@ -806,7 +807,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 </div>
               )}
 
-              {!artifact && <div className="mt-3">
+              {showStandardDiagram && <div className="printable-diagram-section mt-3">
                 {(() => {
                   const fallback = getFallbackVisualization({
                     title: proposal.title,
