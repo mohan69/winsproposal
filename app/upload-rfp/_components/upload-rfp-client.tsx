@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,20 @@ import { toast } from "sonner";
 import { TEMPLATES, VALVE_SUBTYPES, PUMP_SUBTYPES } from "@/lib/templates";
 import { inferRfpIntelligence, type RfpIntelligence } from "@/lib/severe-service-intelligence";
 import { GoNoGoPanel } from "./go-no-go-panel";
+
+function formatElapsed(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function getEstimatedProcessingTime(file?: File | null) {
+  if (!file?.size) return "45–90 seconds for large technical documents";
+  const mb = file.size / (1024 * 1024);
+  if (mb < 2) return "15–30 seconds";
+  if (mb <= 10) return "30–60 seconds";
+  return "60–120 seconds";
+}
 
 export function UploadRfpClient() {
   const router = useRouter();
@@ -30,15 +44,30 @@ export function UploadRfpClient() {
   const [rfpIntelligence, setRfpIntelligence] = useState<RfpIntelligence | null>(null);
   const [showAdvancedOverride, setShowAdvancedOverride] = useState(false);
   const [companySize, setCompanySize] = useState<string>("enterprise");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   // Determine which sub-types to show
   const showValveSubTypes = selectedTemplate === "valve-oem";
   const showPumpSubTypes = selectedTemplate === "pump-oem";
   const subTypeOptions = showValveSubTypes ? VALVE_SUBTYPES : showPumpSubTypes ? PUMP_SUBTYPES : [];
+  const estimatedRange = getEstimatedProcessingTime(selectedFile);
+
+  useEffect(() => {
+    if (!parsing) return;
+
+    const intervalId = window.setInterval(() => {
+      setElapsedSeconds((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [parsing]);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e?.target?.files?.[0];
     if (!file) return;
+    setSelectedFile(file);
+    setElapsedSeconds(0);
     const ext = file?.name?.split(".")?.pop()?.toLowerCase() ?? "";
     if (!["pdf", "docx", "txt"].includes(ext)) {
       toast.error("Only PDF, DOCX, and TXT files are supported");
@@ -112,6 +141,7 @@ export function UploadRfpClient() {
     } finally {
       setUploading(false);
       setParsing(false);
+      setElapsedSeconds(0);
       if (fileInputRef?.current) fileInputRef.current.value = "";
     }
   }
@@ -203,7 +233,20 @@ export function UploadRfpClient() {
                 <>
                   <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
                   <p className="font-medium text-lg">{uploading ? "Uploading file..." : "AI is parsing your RFP..."}</p>
-                  <p className="text-sm text-muted-foreground mt-1">This may take a minute for large documents</p>
+                  {parsing ? (
+                    <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+                      <p>Elapsed time: {formatElapsed(elapsedSeconds)}</p>
+                      <p>Estimated processing time: {estimatedRange}.</p>
+                      <p>Please keep this tab open.</p>
+                      {elapsedSeconds >= 120 ? (
+                        <p className="font-medium text-amber-700">Still processing. Please keep this tab open. If this continues beyond 3 minutes, retry or upload a smaller file.</p>
+                      ) : elapsedSeconds >= 60 ? (
+                        <p className="font-medium text-amber-700">Still working — large technical documents can take longer.</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-1">This may take a minute for large documents</p>
+                  )}
                 </>
               ) : (
                 <>
