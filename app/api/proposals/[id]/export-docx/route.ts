@@ -33,19 +33,6 @@ const ACCENT_COLOR = "10b981";
 type DocxBlock = Paragraph | Table;
 
 const DOCX_VISUAL_WIDTH = 620;
-const TRANSPARENT_PNG_FALLBACK = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-  "base64"
-);
-
-function xmlEscape(value: unknown): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 function getImageDimensions(buffer: Buffer): { width: number; height: number } | null {
   if (buffer.length >= 24 && buffer.toString("ascii", 1, 4) === "PNG") {
@@ -626,94 +613,23 @@ function drawingPackageToMermaidFallback(drawing: DrawingPackage) {
 async function fetchDrawingFallbackPng(drawing: DrawingPackage): Promise<Buffer> {
   const url = getMermaidImageUrl(drawingPackageToMermaidFallback(drawing), "png");
   const image = await fetchImageBuffer(url, { minWidth: 240, minHeight: 120 });
-  return image?.buffer ?? TRANSPARENT_PNG_FALLBACK;
-}
-
-function buildDrawingPackageSvg(drawing: DrawingPackage, brandColor: string) {
-  const symbolById = new Map(drawing.symbols.map((symbol) => [symbol.id, symbol]));
-  const markerId = `arrow-${drawing.titleBlock.drawingNo.replace(/[^a-zA-Z0-9-]/g, "-")}`;
-  const connector = (item: DrawingPackage["connectors"][number]) => {
-    const from = symbolById.get(item.from);
-    const to = symbolById.get(item.to);
-    if (!from || !to) return "";
-    const fromWidth = from.width ?? 112;
-    const fromHeight = from.height ?? 54;
-    const toWidth = to.width ?? 112;
-    const toHeight = to.height ?? 54;
-    const x1 = from.x + fromWidth / 2;
-    const y1 = from.y + fromHeight / 2;
-    const x2 = to.x + toWidth / 2;
-    const y2 = to.y + toHeight / 2;
-    const dashed = item.lineType === "instrument" || item.lineType === "pneumatic" ? `stroke-dasharray="7 5"` : "";
-    const color = item.lineType === "process" ? "#111827" : brandColor;
-    return `<g>
-      <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${item.lineType === "process" ? 2.6 : 1.9}" ${dashed} marker-end="url(#${markerId})"/>
-      ${item.label ? `<text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 8}" class="connector-label">${xmlEscape(item.label)}</text>` : ""}
-    </g>`;
-  };
-  const symbol = (item: DrawingPackage["symbols"][number]) => {
-    const width = item.width ?? 112;
-    const height = item.height ?? 54;
-    const isValve = item.kind.includes("valve");
-    const isController = item.kind === "controller";
-    const isDocument = item.kind.includes("document") || item.kind.includes("certificate") || item.kind.includes("report");
-    const body = isValve
-      ? `<polygon points="${item.x + 8},${item.y + height / 2} ${item.x + width / 2},${item.y + 9} ${item.x + width - 8},${item.y + height / 2} ${item.x + width / 2},${item.y + height - 9}" fill="#fff" stroke="${brandColor}" stroke-width="2.2"/><line x1="${item.x + width / 2}" y1="${item.y + 9}" x2="${item.x + width / 2}" y2="${item.y + height - 9}" stroke="${brandColor}" stroke-width="1.5"/>`
-      : isController
-        ? `<circle cx="${item.x + width / 2}" cy="${item.y + height / 2}" r="${Math.min(width, height) / 2 - 4}" fill="#fff" stroke="${brandColor}" stroke-width="2.1"/>`
-        : isDocument
-          ? `<path d="M${item.x + 8} ${item.y + 4} H${item.x + width - 18} L${item.x + width - 6} ${item.y + 16} V${item.y + height - 5} H${item.x + 8} Z" fill="#fff" stroke="${brandColor}" stroke-width="1.8"/><path d="M${item.x + width - 18} ${item.y + 4} V${item.y + 16} H${item.x + width - 6}" fill="none" stroke="${brandColor}" stroke-width="1.4"/>`
-          : `<rect x="${item.x}" y="${item.y}" width="${width}" height="${height}" rx="4" fill="#fff" stroke="${brandColor}" stroke-width="1.8"/>`;
-    return `<g>
-      ${body}
-      <text x="${item.x + width / 2}" y="${item.y + height / 2 + (isValve ? 4 : 2)}" class="symbol-label">${xmlEscape(item.label)}</text>
-      ${item.tag ? `<text x="${item.x + width / 2}" y="${item.y + height + 15}" class="symbol-tag">${xmlEscape(item.tag)}</text>` : ""}
-    </g>`;
-  };
-  return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="980" height="360" viewBox="0 0 980 360" role="img" aria-label="${xmlEscape(drawing.title)}">
-  <defs>
-    <marker id="${markerId}" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L0,6 L9,3 z" fill="${brandColor}"/>
-    </marker>
-    <style>
-      text { font-family: Arial, Helvetica, sans-serif; }
-      .kicker { fill:${brandColor}; font-size:13px; font-weight:800; letter-spacing:.4px; }
-      .title { fill:#0f172a; font-size:18px; font-weight:800; }
-      .subtitle { fill:#475569; font-size:11px; font-weight:600; }
-      .symbol-label { fill:#0f172a; font-size:9.5px; font-weight:800; text-anchor:middle; }
-      .symbol-tag { fill:${brandColor}; font-size:9px; font-weight:900; text-anchor:middle; }
-      .connector-label { fill:#475569; font-size:8px; font-weight:800; text-anchor:middle; }
-      .note { fill:#78350f; font-size:7.5px; font-weight:800; }
-      .meta { fill:#334155; font-size:8px; font-weight:800; }
-    </style>
-  </defs>
-  <rect x="0" y="0" width="980" height="360" fill="#ffffff"/>
-  <rect x="16" y="14" width="948" height="46" fill="#f8fafc" stroke="#cbd5e1"/>
-  <text x="28" y="32" class="kicker">${xmlEscape(drawingTypeLabel(drawing.drawingType))}</text>
-  <text x="28" y="52" class="title">${xmlEscape(drawing.title)}</text>
-  <text x="520" y="33" class="subtitle">${xmlEscape(drawing.reviewStatus.join(" - "))}</text>
-  <text x="520" y="51" class="subtitle">${xmlEscape(drawing.titleBlock.status)} | Rev ${xmlEscape(drawing.revisionBlock.revision)}</text>
-  <rect x="16" y="72" width="948" height="212" fill="#fbfdff" stroke="#cbd5e1"/>
-  ${drawing.connectors.map(connector).join("")}
-  ${drawing.symbols.map(symbol).join("")}
-  ${drawing.annotations.map((item) => `<g><rect x="${item.x - 10}" y="${item.y - 13}" width="230" height="36" fill="#fffbeb" stroke="#f59e0b"/><text x="${item.x}" y="${item.y + 3}" class="note">${xmlEscape(item.label)}</text></g>`).join("")}
-  <rect x="16" y="296" width="440" height="44" fill="#fff" stroke="#94a3b8"/>
-  <text x="28" y="314" class="meta">Tags: ${xmlEscape(drawing.tagsUsed.join(", ") || "TBD")}</text>
-  <text x="28" y="330" class="meta">Proposal-stage technical drawing. Not for construction.</text>
-  <rect x="502" y="296" width="462" height="44" fill="#fff" stroke="#94a3b8"/>
-  <text x="514" y="314" class="meta">DWG: ${xmlEscape(drawing.titleBlock.drawingNo)}</text>
-  <text x="514" y="330" class="meta">Final engineering validation required using approved tools and licensed standards.</text>
-</svg>`, "utf8");
+  if (image?.buffer && image.buffer.length > 5000) return image.buffer;
+  throw new Error(`Unable to render DOCX drawing PNG for ${drawing.title}`);
 }
 
 async function buildDrawingPackageImageBlocks(drawing: DrawingPackage, brandColor: string): Promise<DocxBlock[]> {
-  const svg = buildDrawingPackageSvg(drawing, brandColor);
-  const fallback = await fetchDrawingFallbackPng(drawing);
+  const png = await fetchDrawingFallbackPng(drawing);
+  const dimensions = getImageDimensions(png) ?? { width: 900, height: 520 };
   return [
+    new Paragraph({ children: [new PageBreak()] }),
     new Paragraph({
       children: [docxText(drawing.title, { bold: true, color: brandColor, size: SIZE_BODY })],
       spacing: { before: 100, after: 50 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(drawing.subtitle, { color: "4b5563", size: SIZE_SMALL })],
+      spacing: { after: 50 },
       keepNext: true,
     }),
     new Paragraph({
@@ -729,10 +645,9 @@ async function buildDrawingPackageImageBlocks(drawing: DrawingPackage, brandColo
     new Paragraph({
       children: [
         new ImageRun({
-          type: "svg",
-          data: svg,
-          fallback: { type: "png", data: fallback },
-          transformation: { width: DOCX_VISUAL_WIDTH, height: 228 },
+          type: "png",
+          data: png,
+          transformation: fitDocxImage(dimensions.width, dimensions.height, DOCX_VISUAL_WIDTH, 330),
           altText: { title: drawing.title, description: drawing.subtitle, name: drawing.title },
         }),
       ],
@@ -1326,10 +1241,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
             children: [
               new Paragraph({
                 children: [
-                  ...(logoImage ? [] : [new TextRun({ text: companyName, size: 16, color: "999999", font: FONT_BODY })]),
-                  ...(logoImage ? [] : [new TextRun({ text: "  |  ", size: 16, color: "cccccc" })]),
-                  new TextRun({ text: logoImage ? companyName + "  |  " : "", size: 16, color: "999999", font: FONT_BODY }),
-                  new TextRun({ text: "Confidential", size: 16, color: "999999", italics: true, font: FONT_BODY }),
+                  new TextRun({ text: severeServiceExport ? "WinsProposal Demo Engine | Confidential Demo Proposal" : `${companyName} | Confidential`, size: 16, color: "999999", font: FONT_BODY, italics: severeServiceExport }),
                 ],
                 alignment: AlignmentType.RIGHT,
                 border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" } },

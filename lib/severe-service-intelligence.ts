@@ -371,10 +371,15 @@ Engineering validation checklist: confirm final process cases, fluid properties,
 }
 
 function executiveRoiSummary(intelligence: RfpIntelligence, extractedData: any) {
+  if (intelligence.applicationId === "hydrogen-process-control") {
+    return `WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours. Estimated annual productivity savings are shown as INR 34-42 lakh based on the demo baseline. These figures are indicative proposal-stage estimates and should be validated against the customer's actual baseline.
+
+${SEVERE_SERVICE_DISCLAIMER}`;
+  }
   const dashboard = extractedData?.dashboard ?? {};
-  const hoursSaved = valueFromObject(dashboard, ["Engineering hours saved", "engineeringHoursSaved"]) || (intelligence.applicationId === "hydrogen-process-control" ? "28" : "32");
-  const reuse = valueFromObject(dashboard, ["Reusable engineering content", "proposalReuse", "reuse"]) || (intelligence.applicationId === "hydrogen-process-control" ? "58%" : "64%");
-  const turnaround = valueFromObject(dashboard, ["Proposal turnaround reduction", "turnaroundReduction"]) || (intelligence.applicationId === "hydrogen-process-control" ? "44%" : "50%");
+  const hoursSaved = valueFromObject(dashboard, ["Engineering hours saved", "engineeringHoursSaved"]) || "32";
+  const reuse = valueFromObject(dashboard, ["Reusable engineering content", "proposalReuse", "reuse"]) || "64%";
+  const turnaround = valueFromObject(dashboard, ["Proposal turnaround reduction", "turnaroundReduction"]) || "50%";
   return `| ROI Metric | Baseline | WinsProposal Demo Output | Executive Impact |
 |---|---:|---:|---|
 | Proposal cycle time | 5.0 working days | 2.8 working days | ${turnaround} faster first-pass proposal pack |
@@ -426,12 +431,12 @@ Extraction status: proposal-ready intelligence generated for demo review. Final 
 
 function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any) {
   const hydrogen = intelligence.applicationId === "hydrogen-process-control";
-  const technical = hydrogen ? 88 : 86;
+  const technical = hydrogen ? 82 : 86;
   const commercial = hydrogen ? 78 : 80;
-  const strategic = hydrogen ? 92 : 88;
-  const marginRisk = hydrogen ? 72 : 74;
-  const deliveryRisk = hydrogen ? 76 : 75;
-  const finalScore = Math.round(technical * 0.3 + commercial * 0.2 + strategic * 0.2 + marginRisk * 0.15 + deliveryRisk * 0.15);
+  const strategic = hydrogen ? 84 : 88;
+  const marginRisk = hydrogen ? 70 : 74;
+  const deliveryRisk = hydrogen ? 74 : 75;
+  const finalScore = hydrogen ? 78 : Math.round(technical * 0.3 + commercial * 0.2 + strategic * 0.2 + marginRisk * 0.15 + deliveryRisk * 0.15);
   return `| Bid Dimension | Score | Rationale |
 |---|---:|---|
 | Technical fit | ${technical}/100 | Strong severe-service fit; ${intelligence.recommendedEngineeringOutputs.slice(0, 3).join(", ")} covered. |
@@ -439,12 +444,24 @@ function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any) {
 | Strategic fit | ${strategic}/100 | Hydrogen and severe-service proposal capability aligns with strategic industrial growth themes. |
 | Margin risk | ${marginRisk}/100 | Specialty trim, accessories, testing, and documentation can affect margin until final scope freeze. |
 | Delivery risk | ${deliveryRisk}/100 | Schedule is feasible if drawing review, long-lead items, and witness points are confirmed early. |
-| Final bid score | ${finalScore}/100 | Recommendation: ${finalScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}. |
+| Bid Readiness Score | ${finalScore}% | Recommendation: ${finalScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}. |
 
-Bid governance note: score is a proposal-stage decision aid, not an approval record.`;
+Bid governance note: Bid Readiness Score ${finalScore}%. Score is a proposal-stage decision aid, not an approval record.`;
 }
 
 function commercialSummary(intelligence: RfpIntelligence, extractedData: any) {
+  if (intelligence.applicationId === "hydrogen-process-control") {
+    return `| Line Item | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
+|---|---:|---|---|---|
+| HV-H2-3101A/B/C/D | 4 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
+| FV-H2-3150A/B | 2 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
+| PV-H2-3190 | 1 | Demo placeholder / subject to final sizing and noise review | Noise review, leakage testing, MDR support where applicable | 16-18 weeks after drawing approval |
+| DOC-H2 MDR Dossier | 1 lot | Documentation package basis | Included with final MDR/data book; witness/hold point support optional | With final dispatch |
+
+Proposal validity: 60 days from bid due date.
+
+Final pricing is demo placeholder only and requires customer-specific commercial validation.`;
+  }
   const bidValue = extractedData?.estimatedBidValue ?? extractedData?.bidValue ?? "Pricing placeholder - to be finalized by commercial team";
   return `| Commercial Item | Proposal-Stage Position |
 |---|---|
@@ -456,6 +473,20 @@ function commercialSummary(intelligence: RfpIntelligence, extractedData: any) {
 | Commercial clarifications | Confirm Incoterms, delivery location, validity, LD exposure, bank guarantee/bid bond, inspection witness costs, and optional spares. |
 
 Commercial boundary: commercial placeholders are for customer-demo review only and must be replaced by approved commercial terms before submission.`;
+}
+
+function deliveryTimeline(intelligence: RfpIntelligence) {
+  if (intelligence.applicationId === "hydrogen-process-control") {
+    return `| Milestone | Indicative Timeline | Dependency / Note |
+|---|---|---|
+| Drawing submission | 4 weeks from PO / technical clearance | Subject to final process data and tag details |
+| Engineering validation | 1-2 weeks after final process data | Sizing, trim, materials, actuator, and accessory validation |
+| Manufacturing lead time | 12-14 weeks after drawing approval | Subject to long-lead trims/materials/accessories |
+| Inspection and testing | 2 weeks | Hydrotest, seat leakage, functional stroke, PMI/NDE where applicable |
+| Shipping readiness | 3 weeks after test clearance | Subject to release note and documentation acceptance |
+| Final MDR/data book | With dispatch / post-final inspection | Includes MTC, PMI, test records, certificates, and deviation register |`;
+  }
+  return "Indicative timeline should include RFP review, engineering validation, datasheet/GA drawing issue, client review, procurement, manufacturing, inspection/test, documentation compilation, dispatch, and final technical handover.";
 }
 
 function executiveDashboardSnapshot(intelligence: RfpIntelligence, extractedData: any) {
@@ -512,7 +543,7 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
     "Drawings and Technical Visuals": drawingGallery(intelligence),
     "Deviations / Clarifications": "Clarifications should capture missing process cases, fluid properties, final pressure/temperature cases, leakage class confirmation, accessory make/model preferences, inspection witness points, delivery assumptions, and any commercial/schedule impacts.",
     "Risk Assessment": `Primary proposal-stage risk flags: ${intelligence.keyRisks.join(", ")}. Risks should be assigned owners, mitigation status, evidence, and management approval path where bid exposure is material.`,
-    "Project Timeline & Delivery": "Indicative timeline should include RFP review, engineering validation, datasheet/GA drawing issue, client review, procurement, manufacturing, inspection/test, documentation compilation, dispatch, and final technical handover.",
+    "Project Timeline & Delivery": deliveryTimeline(intelligence),
     "Commercial Summary": commercialSummary(intelligence, extractedData),
     "Executive Dashboard Snapshot": executiveDashboardSnapshot(intelligence, extractedData),
   };

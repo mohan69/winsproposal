@@ -12,19 +12,11 @@ import {
   TextRun,
 } from "docx";
 import { buildDrawingPackages, drawingTypeLabel, type DrawingPackage } from "../lib/drawing-intelligence";
-import { getBestVisualizationType, getFallbackVisualization } from "../lib/visualization-service";
+import { ensureSevereServiceSections, inferRfpIntelligence } from "../lib/severe-service-intelligence";
+import { getBestVisualizationType, getFallbackVisualization, getMermaidImageUrl } from "../lib/visualization-service";
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
-}
-
-function xmlEscape(value: unknown): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }
 
 function stripXml(value: string) {
@@ -60,46 +52,15 @@ function fit(width: number, height: number, maxWidth = 620, maxHeight = 340) {
   return { width: Math.round(width * ratio), height: Math.round(height * ratio) };
 }
 
-function drawingSvg(drawing: DrawingPackage, brandColor: string) {
-  const symbolById = new Map(drawing.symbols.map((symbol) => [symbol.id, symbol]));
-  const markerId = `verify-${drawing.titleBlock.drawingNo.replace(/[^a-zA-Z0-9-]/g, "-")}`;
-  const connectors = drawing.connectors.map((item) => {
-    const from = symbolById.get(item.from);
-    const to = symbolById.get(item.to);
-    if (!from || !to) return "";
-    const x1 = from.x + (from.width ?? 112) / 2;
-    const y1 = from.y + (from.height ?? 54) / 2;
-    const x2 = to.x + (to.width ?? 112) / 2;
-    const y2 = to.y + (to.height ?? 54) / 2;
-    const dashed = item.lineType === "instrument" || item.lineType === "pneumatic" ? `stroke-dasharray="7 5"` : "";
-    const color = item.lineType === "process" ? "#111827" : brandColor;
-    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" ${dashed} marker-end="url(#${markerId})"/>`;
-  }).join("");
-  const symbols = drawing.symbols.map((item) => {
-    const width = item.width ?? 112;
-    const height = item.height ?? 54;
-    const isValve = item.kind.includes("valve");
-    const body = isValve
-      ? `<polygon points="${item.x + 8},${item.y + height / 2} ${item.x + width / 2},${item.y + 9} ${item.x + width - 8},${item.y + height / 2} ${item.x + width / 2},${item.y + height - 9}" fill="#fff" stroke="${brandColor}" stroke-width="2"/>`
-      : `<rect x="${item.x}" y="${item.y}" width="${width}" height="${height}" rx="4" fill="#fff" stroke="${brandColor}" stroke-width="1.8"/>`;
-    return `${body}<text x="${item.x + width / 2}" y="${item.y + height / 2 + 3}" class="label">${xmlEscape(item.label)}</text>${item.tag ? `<text x="${item.x + width / 2}" y="${item.y + height + 15}" class="tag">${xmlEscape(item.tag)}</text>` : ""}`;
-  }).join("");
-  return Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="980" height="360" viewBox="0 0 980 360">
-  <defs><marker id="${markerId}" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="${brandColor}"/></marker></defs>
-  <style>text{font-family:Arial,Helvetica,sans-serif}.title{fill:#0f172a;font-size:18px;font-weight:800}.sub{fill:#475569;font-size:11px;font-weight:700}.label{fill:#0f172a;font-size:9px;font-weight:800;text-anchor:middle}.tag{fill:${brandColor};font-size:8.5px;font-weight:900;text-anchor:middle}.meta{fill:#334155;font-size:8px;font-weight:800}</style>
-  <rect width="980" height="360" fill="#fff"/>
-  <rect x="16" y="14" width="948" height="46" fill="#f8fafc" stroke="#cbd5e1"/>
-  <text x="28" y="38" class="title">${xmlEscape(drawing.title)}</text>
-  <text x="620" y="34" class="sub">${xmlEscape(drawingTypeLabel(drawing.drawingType))}</text>
-  <text x="620" y="51" class="sub">${xmlEscape(drawing.reviewStatus.join(" - "))}</text>
-  <rect x="16" y="72" width="948" height="212" fill="#fbfdff" stroke="#cbd5e1"/>
-  ${connectors}
-  ${symbols}
-  <rect x="16" y="296" width="948" height="44" fill="#fff" stroke="#94a3b8"/>
-  <text x="28" y="316" class="meta">Tags: ${xmlEscape(drawing.tagsUsed.join(", ") || "TBD")}</text>
-  <text x="28" y="332" class="meta">Proposal-stage technical drawing. Not for construction. Final validation required.</text>
-</svg>`, "utf8");
+function drawingPackageToMermaidFallback(drawing: DrawingPackage) {
+  const nodes = drawing.symbols.slice(0, 8);
+  if (nodes.length === 0) return `graph LR\n  A["${drawing.title}"] --> B["Engineering Review Required"]`;
+  const lines = ["graph LR"];
+  nodes.forEach((symbol, index) => {
+    lines.push(`  N${index}["${String(symbol.tag || symbol.label).replace(/"/g, "'")}"]`);
+  });
+  for (let index = 0; index < nodes.length - 1; index++) lines.push(`  N${index} --> N${index + 1}`);
+  return lines.join("\n");
 }
 
 async function buildVerificationDocx() {
@@ -114,6 +75,7 @@ async function buildVerificationDocx() {
       { id: "H2-003", description: "Material traceability, MTC, PMI, leakage test evidence, and MDR release" },
     ],
   };
+  const generatedSections = ensureSevereServiceSections([], inferRfpIntelligence(extractedData), extractedData);
   const sections = [
     ["Executive Summary", "Customer requirement, technical compliance, delivery confidence, risk reduction, commercial value, and win theme."],
     ["Project Background / Opportunity Context", "Hydrogen hub project, process criticality, severe service valve requirement, compliance standards, OEM/EPC evaluation, and bid opportunity."],
@@ -123,6 +85,10 @@ async function buildVerificationDocx() {
   ];
   const children: Paragraph[] = [
     new Paragraph({ children: [new TextRun({ text: "Hydrogen Process Control Valve Package", bold: true, size: 30, color: brandColor })], spacing: { after: 240 } }),
+    ...generatedSections.map((section) => new Paragraph({
+      children: [new TextRun({ text: `${section.title}\n${section.content}`, size: 20 })],
+      spacing: { after: 100 },
+    })),
   ];
   for (const [sectionTitle, content] of sections) {
     const type = getBestVisualizationType(sectionTitle, content, { templateType, industry: "Severe-Service Control Valves" });
@@ -133,19 +99,22 @@ async function buildVerificationDocx() {
   }
   const drawings = buildDrawingPackages({ proposalId: "docx-verify", templateType, extractedData });
   for (const drawing of drawings) {
+    const image = await fetchPng(getMermaidImageUrl(drawingPackageToMermaidFallback(drawing), "png"));
     children.push(new Paragraph({ children: [new TextRun({ text: drawing.title, bold: true, size: 22, color: brandColor })], heading: HeadingLevel.HEADING_2, spacing: { before: 220, after: 80 }, keepNext: true }));
+    children.push(new Paragraph({ children: [new TextRun({ text: `${drawingTypeLabel(drawing.drawingType)} | ${drawing.reviewStatus.join(" - ")}`, bold: true, size: 18, color: "4b5563" })], spacing: { after: 60 }, keepNext: true }));
     children.push(new Paragraph({ children: [new TextRun({ text: drawing.disclaimer, italics: true, size: 18, color: "92400e" })], spacing: { after: 80 }, keepNext: true }));
     children.push(new Paragraph({
       children: [new ImageRun({
-        type: "svg",
-        data: drawingSvg(drawing, brandColor),
-        fallback: { type: "png", data: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=", "base64") },
-        transformation: { width: 620, height: 228 },
+        type: "png",
+        data: image.buffer,
+        transformation: fit(image.width, image.height, 620, 330),
         altText: { title: drawing.title, description: drawing.subtitle, name: drawing.title },
       })],
       alignment: AlignmentType.CENTER,
       spacing: { after: 180 },
     }));
+    children.push(new Paragraph({ children: [new TextRun({ text: `Tags used: ${drawing.tagsUsed.join(", ") || "TBD"}`, bold: true, size: 18 })], spacing: { after: 80 } }));
+    children.push(new Paragraph({ children: [new TextRun({ text: `Engineering notes: ${drawing.engineeringReviewNotes.join(" ")}`, size: 18 })], spacing: { after: 120 } }));
   }
   const doc = new Document({
     sections: [{
@@ -156,6 +125,14 @@ async function buildVerificationDocx() {
             children: [new TextRun({ text: "Hydrogen Process Control Valve Package | Proposal-stage engineering estimate", size: 14, color: "777777" })],
             alignment: AlignmentType.CENTER,
             border: { top: { style: BorderStyle.SINGLE, size: 1, color: "dddddd" } },
+          })],
+        }),
+      },
+      headers: {
+        default: new (await import("docx")).Header({
+          children: [new Paragraph({
+            children: [new TextRun({ text: "WinsProposal Demo Engine | Confidential Demo Proposal", size: 16, color: "999999", italics: true })],
+            alignment: AlignmentType.RIGHT,
           })],
         }),
       },
@@ -170,19 +147,32 @@ async function main() {
   const zip = await JSZip.loadAsync(buffer);
   const fileNames = Object.keys(zip.files);
   const mediaFiles = fileNames.filter((name) => /^word\/media\//.test(name));
+  const mediaSizes = await Promise.all(mediaFiles.map(async (name) => ({
+    name,
+    size: (await zip.file(name)?.async("uint8array"))?.byteLength ?? 0,
+  })));
+  const nonTrivialMediaFiles = mediaSizes.filter((item) => item.size > 5000);
   const documentXml = await zip.file("word/document.xml")?.async("string");
+  const headerXml = (await Promise.all(fileNames.filter((name) => /^word\/header\d+\.xml$/.test(name)).map(async (name) => zip.file(name)?.async("string") ?? ""))).join("\n");
   const footerXml = (await Promise.all(fileNames.filter((name) => /^word\/footer\d+\.xml$/.test(name)).map(async (name) => zip.file(name)?.async("string") ?? ""))).join("\n");
   if (!documentXml) throw new Error("DOCX: missing word/document.xml");
-  const xmlText = stripXml(`${documentXml ?? ""}\n${footerXml}`);
+  const xmlText = stripXml(`${documentXml ?? ""}\n${headerXml}\n${footerXml}`);
   const routeSource = await fs.readFile("app/api/proposals/[id]/export-docx/route.ts", "utf8");
 
   assert(mediaFiles.length > 0, "DOCX: expected embedded files under word/media/");
   assert(mediaFiles.length >= 8, `DOCX: expected at least 8 embedded media files, found ${mediaFiles.length}`);
+  assert(nonTrivialMediaFiles.length >= 8, `DOCX: expected at least 8 non-trivial embedded images over 5KB, found ${nonTrivialMediaFiles.length}`);
   assert((documentXml.match(/<w:drawing/g) ?? []).length >= 8, "DOCX: expected at least 8 w:drawing objects");
   assert(!/Page\s+of/i.test(xmlText), "DOCX footer: broken 'Page  of' text should not be present");
   assert(xmlText.includes("Hydrogen Process Control Valve Package | Proposal-stage engineering estimate"), "DOCX footer: clean static footer missing");
+  assert(xmlText.includes("WinsProposal Demo Engine | Confidential Demo Proposal"), "DOCX header: neutral demo branding missing");
 
   for (const title of [
+    "Executive Summary",
+    "Project Background / Opportunity Context",
+    "Process Conditions",
+    "Engineering Basis",
+    "Commercial Summary",
     "PFD-style Hydrogen Service System Topology",
     "P&ID-lite Control Loop",
     "Hydrogen Valve Package Schematic",
@@ -191,22 +181,40 @@ async function main() {
   ]) {
     assert(xmlText.includes(title), `DOCX: missing visual title ${title}`);
   }
+  for (const forbidden of ["INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "Bid Score 88%", "final bid score 88%", "CCI Severe Service Solutions"]) {
+    assert(!xmlText.includes(forbidden), `DOCX: forbidden text present: ${forbidden}`);
+  }
+  for (const required of [
+    "INR 34-42 lakh",
+    "Bid Readiness Score 78%",
+    "Proposal validity: 60 days",
+    "Drawing submission",
+    "Manufacturing lead time",
+    "Inspection and testing",
+    "Shipping readiness",
+  ]) {
+    assert(xmlText.includes(required), `DOCX: missing required text: ${required}`);
+  }
   for (const routeCheck of [
     "new ImageRun",
-    "buildDrawingPackageSvg",
+    "type: \"png\"",
+    "fetchDrawingFallbackPng",
     "fetchSectionDiagramImage",
     "shouldRenderProposalDiagram",
     "Proposal-stage engineering estimate",
+    "WinsProposal Demo Engine | Confidential Demo Proposal",
   ]) {
     assert(routeSource.includes(routeCheck), `DOCX route: missing ${routeCheck}`);
   }
   assert(!routeSource.includes("PageNumber.CURRENT"), "DOCX route: should not use broken PAGE field");
   assert(!routeSource.includes("PageNumber.TOTAL_PAGES"), "DOCX route: should not use broken NUMPAGES field");
+  assert(!routeSource.includes("type: \"svg\""), "DOCX route: should not embed SVG-only visuals");
 
   console.log(JSON.stringify({
     status: "passed",
     checks: {
       mediaFiles: mediaFiles.length,
+      nonTrivialMediaFiles: nonTrivialMediaFiles.length,
       drawingObjects: (documentXml.match(/<w:drawing/g) ?? []).length,
       footer: "clean static footer",
       drawingTitles: [

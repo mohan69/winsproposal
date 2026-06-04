@@ -606,19 +606,19 @@ export function generateProposalHtml(data: PdfData): string {
     .artifact-diagram-feedback { border:1px dashed; border-radius:999px; background:white; padding:4px 8px; font-size:8px; font-weight:800; }
     .artifact-diagram-annotations { display:grid; grid-template-columns:repeat(2,1fr); gap:4px; margin-top:7px; padding-top:7px; border-top:1px solid #e5e7eb; }
     .artifact-diagram-annotations span { background:white; border-radius:5px; padding:4px 5px; font-size:7.6px; line-height:1.25; color:#4b5563; font-weight:700; }
-    .die-card { display:block; background:white; border:1px solid #cbd5e1; border-radius:8px; margin:10px 0 14px; overflow:visible; break-inside: avoid; page-break-inside: avoid; }
+    .die-card { display:block; background:white; border:1px solid #cbd5e1; border-radius:8px; margin:8px auto 12px; max-width:100%; overflow:visible; break-inside: avoid; page-break-inside: avoid; }
     .die-card + .die-card { break-before: page; page-break-before: always; }
-    .die-head { display:flex; justify-content:space-between; gap:10px; padding:9px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+    .die-head { display:flex; justify-content:space-between; gap:10px; padding:8px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
     .die-kicker { color:${brandColor}; font-size:8px; font-weight:900; text-transform:uppercase; letter-spacing:.35px; }
     .die-title { color:#0f172a; font-size:11px; font-weight:900; margin-top:2px; }
     .die-subtitle { color:#475569; font-size:8.5px; line-height:1.35; margin-top:2px; }
     .die-status { color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:999px; padding:4px 7px; height:max-content; font-size:7.5px; font-weight:800; }
-    .die-disclaimer { color:#92400e; background:#fffbeb; border-bottom:1px solid #fde68a; padding:6px 9px; font-size:8px; font-weight:700; line-height:1.35; }
-    .die-svg { width:100%; height:auto; display:block; background:white; }
-    .die-symbol-label { fill:#0f172a; font-size:9px; font-weight:800; text-anchor:middle; }
-    .die-symbol-tag { fill:${brandColor}; font-size:8.5px; font-weight:900; text-anchor:middle; }
-    .die-connector-label { fill:#475569; font-size:8px; font-weight:800; text-anchor:middle; }
-    .die-note { fill:#78350f; font-size:7px; font-weight:800; }
+    .die-disclaimer { color:#92400e; background:#fffbeb; border-bottom:1px solid #fde68a; padding:5px 9px; font-size:7.8px; font-weight:700; line-height:1.3; }
+    .die-svg { width:100%; height:auto; display:block; background:white; margin:0 auto; overflow:visible; }
+    .die-symbol-label { fill:#0f172a; font-size:10px; font-weight:800; text-anchor:middle; }
+    .die-symbol-tag { fill:${brandColor}; font-size:9.4px; font-weight:900; text-anchor:middle; }
+    .die-connector-label { fill:#475569; font-size:8.6px; font-weight:800; text-anchor:middle; }
+    .die-note { fill:#78350f; font-size:7.8px; font-weight:800; }
     .die-title-block-text { fill:#334155; font-size:8px; font-weight:800; }
     .die-meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; background:#f8fafc; border-top:1px solid #e2e8f0; }
     .die-meta-grid div { background:white; border:1px solid #e2e8f0; border-radius:5px; padding:5px 6px; }
