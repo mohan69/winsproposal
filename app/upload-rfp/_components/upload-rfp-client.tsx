@@ -29,6 +29,43 @@ function getEstimatedProcessingTime(file?: File | null) {
   return "60–120 seconds";
 }
 
+function formatParsedValue(value: unknown, fallback = ""): string {
+  if (value == null) return fallback;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map((item) => formatParsedValue(item)).filter(Boolean).join(", ");
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const preferred = record.description ?? record.requirement ?? record.name ?? record.title ?? record.value ?? record.standard ?? record.clause;
+    if (preferred != null) return formatParsedValue(preferred, fallback);
+    return Object.entries(record)
+      .map(([key, entry]) => `${key}: ${formatParsedValue(entry)}`)
+      .filter((entry) => !entry.endsWith(": "))
+      .join(", ") || fallback;
+  }
+  return String(value);
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : value == null ? [] : [value];
+}
+
+function formatCriterionWeight(weight: unknown): string {
+  const value = formatParsedValue(weight);
+  if (!value) return "";
+  return /^\d+(\.\d+)?$/.test(value) ? `${value}%` : value;
+}
+
+function renderEvaluationCriterion(item: unknown, index: number): string {
+  if (typeof item === "string") return item;
+  if (item && typeof item === "object" && "criterion" in item) {
+    const record = item as { criterion?: unknown; weight?: unknown };
+    const criterion = formatParsedValue(record.criterion, `Criterion ${index + 1}`);
+    const weight = formatCriterionWeight(record.weight);
+    return weight ? `${criterion}: ${weight}` : criterion;
+  }
+  return formatParsedValue(item);
+}
+
 export function UploadRfpClient() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -209,10 +246,10 @@ export function UploadRfpClient() {
     }
   }
 
-  const requirements = extractedData?.requirements ?? [];
-  const lineItems = extractedData?.lineItems ?? [];
-  const compliance = extractedData?.complianceRequirements ?? [];
-  const criteria = extractedData?.evaluationCriteria ?? [];
+  const requirements = asArray(extractedData?.requirements);
+  const lineItems = asArray(extractedData?.lineItems);
+  const compliance = asArray(extractedData?.complianceRequirements);
+  const criteria = asArray(extractedData?.evaluationCriteria);
 
   return (
     <div className="p-4 md:p-8 max-w-[1200px] mx-auto">
@@ -269,7 +306,7 @@ export function UploadRfpClient() {
                 <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                 <div className="flex-1">
                   <p className="font-medium text-emerald-800">{fileName} parsed successfully</p>
-                  <p className="text-sm text-emerald-700">{extractedData?.title ?? "RFP"} • {extractedData?.industry ?? "General"}</p>
+                  <p className="text-sm text-emerald-700">{formatParsedValue(extractedData?.title, "RFP")} • {formatParsedValue(extractedData?.industry, "General")}</p>
                 </div>
               </div>
               {rfpIntelligence && (
@@ -386,14 +423,14 @@ export function UploadRfpClient() {
 
           {/* Go/No-Go Assessment */}
           {rfpId && (
-            <GoNoGoPanel rfpId={rfpId} industry={extractedData?.industry ?? "General"} />
+            <GoNoGoPanel rfpId={rfpId} industry={formatParsedValue(extractedData?.industry, "General")} />
           )}
 
           {extractedData?.summary && (
             <Card className="shadow-sm">
               <CardContent className="p-4">
                 <h3 className="font-display font-semibold flex items-center gap-2 mb-2"><FileBarChart className="w-4 h-4 text-primary" /> Summary</h3>
-                <p className="text-sm text-muted-foreground">{extractedData?.summary}</p>
+                <p className="text-sm text-muted-foreground">{formatParsedValue(extractedData?.summary)}</p>
               </CardContent>
             </Card>
           )}
@@ -405,8 +442,8 @@ export function UploadRfpClient() {
                 <div className="space-y-2">
                   {requirements?.map((r: any, i: number) => (
                     <div key={i} className="flex items-start gap-2 text-sm">
-                      <Badge variant="outline" className="text-xs shrink-0 mt-0.5">{r?.category ?? "general"}</Badge>
-                      <span>{r?.description ?? String(r)}</span>
+                      <Badge variant="outline" className="text-xs shrink-0 mt-0.5">{formatParsedValue(r?.category, "general")}</Badge>
+                      <span>{formatParsedValue(r?.description ?? r)}</span>
                     </div>
                   ))}
                 </div>
@@ -423,7 +460,12 @@ export function UploadRfpClient() {
                     <thead><tr className="border-b"><th className="text-left p-2 font-medium">Item</th><th className="text-left p-2 font-medium">Description</th><th className="text-left p-2 font-medium">Qty</th><th className="text-left p-2 font-medium">Specs</th></tr></thead>
                     <tbody>
                       {lineItems?.map((l: any, i: number) => (
-                        <tr key={i} className="border-b last:border-0"><td className="p-2">{l?.item}</td><td className="p-2 text-muted-foreground">{l?.description}</td><td className="p-2">{l?.quantity}</td><td className="p-2 text-muted-foreground">{l?.specifications}</td></tr>
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="p-2">{formatParsedValue(l?.item ?? l?.tag ?? l?.lineItem ?? `Item ${i + 1}`)}</td>
+                          <td className="p-2 text-muted-foreground">{formatParsedValue(l?.description ?? l)}</td>
+                          <td className="p-2">{formatParsedValue(l?.quantity ?? l?.qty, "-")}</td>
+                          <td className="p-2 text-muted-foreground">{formatParsedValue(l?.specifications ?? l?.specification ?? l?.specs, "-")}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -437,8 +479,8 @@ export function UploadRfpClient() {
               <CardContent className="p-4">
                 <h3 className="font-display font-semibold flex items-center gap-2 mb-3"><ClipboardCheck className="w-4 h-4 text-primary" /> Compliance Requirements</h3>
                 <ul className="space-y-1">
-                  {compliance?.map((c: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm"><CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 mt-1" />{c}</li>
+                  {compliance?.map((c: unknown, i: number) => (
+                    <li key={i} className="flex items-start gap-2 text-sm"><CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 mt-1" />{formatParsedValue(c)}</li>
                   ))}
                 </ul>
               </CardContent>
@@ -450,8 +492,8 @@ export function UploadRfpClient() {
               <CardContent className="p-4">
                 <h3 className="font-display font-semibold flex items-center gap-2 mb-3"><Target className="w-4 h-4 text-primary" /> Evaluation Criteria</h3>
                 <ul className="space-y-1">
-                  {criteria?.map((c: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm"><span className="text-primary font-mono text-xs mt-0.5">{i + 1}.</span>{c}</li>
+                  {criteria?.map((c: unknown, i: number) => (
+                    <li key={i} className="flex items-start gap-2 text-sm"><span className="text-primary font-mono text-xs mt-0.5">{i + 1}.</span>{renderEvaluationCriterion(c, i)}</li>
                   ))}
                 </ul>
               </CardContent>
