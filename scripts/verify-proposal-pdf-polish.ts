@@ -80,6 +80,7 @@ const tocHtml = tocStart >= 0 && tocEnd > tocStart ? html.slice(tocStart, tocEnd
 
 assert(tocHtml.length > 0, "TOC: expected table of contents HTML");
 assert(!/Page\s+\d+/i.test(tocHtml), "TOC: exact page numbers should be disabled");
+assert(!/>Section</i.test(tocHtml), "TOC: should not show SECTION text");
 assertNotIncludes(html, "0/5", "Compliance checklist");
 assertNotIncludes(html, "items verified", "Compliance checklist");
 assertNotIncludes(html, ">OPEN<", "Compliance checklist");
@@ -98,6 +99,16 @@ assertNotIncludes(html, "42%</div>", "Cover score");
 assertIncludes(html, "Proposal Sections", "Cover score");
 assertIncludes(html, "Proposal Status", "Cover score");
 assertIncludes(html, "Draft / Demo", "Cover score");
+assertIncludes(html, "5.0 days", "Executive ROI metrics");
+assertIncludes(html, "2.8 days", "Executive ROI metrics");
+assertIncludes(html, "64 hours", "Executive ROI metrics");
+assertIncludes(html, "36 hours", "Executive ROI metrics");
+assertIncludes(html, "14 hours", "Executive ROI metrics");
+assertIncludes(html, "6 hours", "Executive ROI metrics");
+assertIncludes(html, "INR 34-42 lakh", "Executive ROI metrics");
+for (const badRoiClaim of ["INR 2 Cr", "INR 4 Cr", "INR 2 crore", "INR 4 crore", "₹2 Cr", "₹4 Cr"]) {
+  assertNotIncludes(html, badRoiClaim, "Executive ROI narrative");
+}
 
 const acronymChecks: Array<[string, string]> = [
   ["tbe_matrix", "TBE Matrix"],
@@ -128,6 +139,7 @@ for (const cssCheck of [
   ".section-body { font-size:10.8pt",
   ".section-body p { margin:0 0 10px 0",
   ".compliance-table",
+  ".die-card + .die-card { break-before: page; page-break-before: always; }",
   "break-inside: avoid",
   "page-break-inside: avoid",
 ] as const) {

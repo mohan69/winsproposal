@@ -384,7 +384,7 @@ function executiveRoiSummary(intelligence: RfpIntelligence, extractedData: any) 
 | Bid throughput | 8 complex bids/month | 13 complex bids/month | 62% higher severe-service bid capacity |
 | Estimated annual productivity savings | Manual effort baseline | INR 34-42 lakh equivalent | Based on avoided engineering/compliance hours across recurring bid volume |
 
-Executive takeaway: WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours.
+Executive takeaway: WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model mirrors the ROI cover: first-pass proposal cycle time reduces from 5.0 days to 2.8 days, engineering effort reduces from 64 hours to 36 hours, compliance review effort reduces from 14 hours to 6 hours, controlled proposal reuse improves from 20% ad hoc reuse to ${reuse}, and severe-service bid throughput improves from 8 to 13 complex bids per month.
 
 These figures are indicative proposal-stage estimates and should be validated against the customer's actual baseline.
 

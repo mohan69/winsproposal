@@ -493,7 +493,6 @@ export function generateProposalHtml(data: PdfData): string {
       (entry) =>
         `<a href="${entry.href}" class="toc-link">
           <span>${entry.label}</span>
-          <span>Section</span>
         </a>`
     )
     .join("");
@@ -563,9 +562,8 @@ export function generateProposalHtml(data: PdfData): string {
     .vault-category-grid span { display:block; color:#047857; font-size:8.5px; line-height:1.35; }
     .toc-page { }
     .toc-title { font-size: 20px; font-weight: 700; color: ${brandColor}; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid ${brandColor}; }
-    .toc-link { display:flex; justify-content:space-between; align-items:baseline; padding:7px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
+    .toc-link { display:block; padding:7px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
     .toc-link span:first-child { max-width:150mm; }
-    .toc-link span:last-child { font-size:9px; color:#6b7280; flex-shrink:0; margin-left:8px; text-transform:uppercase; letter-spacing:.35px; }
     .section-page { }
     .proposal-section { break-inside:avoid; page-break-inside:avoid; break-before:auto; page-break-before:auto; margin-bottom:28px; padding-bottom:16px; border-bottom:1px solid #e5e7eb; overflow:visible; }
     .section-start-block { break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
@@ -609,6 +607,7 @@ export function generateProposalHtml(data: PdfData): string {
     .artifact-diagram-annotations { display:grid; grid-template-columns:repeat(2,1fr); gap:4px; margin-top:7px; padding-top:7px; border-top:1px solid #e5e7eb; }
     .artifact-diagram-annotations span { background:white; border-radius:5px; padding:4px 5px; font-size:7.6px; line-height:1.25; color:#4b5563; font-weight:700; }
     .die-card { display:block; background:white; border:1px solid #cbd5e1; border-radius:8px; margin:10px 0 14px; overflow:visible; break-inside: avoid; page-break-inside: avoid; }
+    .die-card + .die-card { break-before: page; page-break-before: always; }
     .die-head { display:flex; justify-content:space-between; gap:10px; padding:9px 10px; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
     .die-kicker { color:${brandColor}; font-size:8px; font-weight:900; text-transform:uppercase; letter-spacing:.35px; }
     .die-title { color:#0f172a; font-size:11px; font-weight:900; margin-top:2px; }
