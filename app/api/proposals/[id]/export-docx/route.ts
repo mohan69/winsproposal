@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, getMermaidImageUrl, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
-import { getHydrogenSectionContentOverride, getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getHydrogenSectionContentOverride, getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, normalizeHydrogenTbeData, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import {
   buildEngineeringArtifact,
   getProposalVisualSpec,
@@ -832,6 +832,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const severeServiceExport = /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
     const hydrogenExport = intelligence.applicationId === "hydrogen-process-control"
       || /hydrogen/i.test(`${proposal.title} ${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
+    const exportTbeData = hydrogenExport ? normalizeHydrogenTbeData(tbeData) : tbeData;
     const exportSections = proposal.sections.map((section) => ({
       ...section,
       content: hydrogenExport ? getHydrogenSectionContentOverride(section.sectionTitle) ?? section.content : section.content,
@@ -905,7 +906,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const neutralDemoBranding = severeServiceExport && /cci severe service solutions|imi cci/i.test(companyName);
     const preparedBy = neutralDemoBranding ? "WinsProposal Demo Engine" : companyName;
     const preparedFor = severeServiceExport ? "Demo Customer / Severe-Service Valve OEM" : "Customer organization";
-    const docxBidReadinessScore = severeServiceExport && scoreResult.total < 60 ? 78 : scoreResult.total;
+    const docxBidReadinessScore = hydrogenExport ? 78 : severeServiceExport && scoreResult.total < 60 ? 78 : scoreResult.total;
 
     // Company & Date
     docChildren.push(new Paragraph({
@@ -991,10 +992,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }));
       tocIdx++;
     }
-    if (tbeData) {
+    if (exportTbeData) {
       docChildren.push(new Paragraph({
         children: [
-          tocLink(`${tocIdx}. Technical Bid Evaluation (TBE)`, tbeAnchor, brandColor),
+          tocLink("Appendix A. Detailed Technical Bid Evaluation (TBE)", tbeAnchor, brandColor),
         ],
         spacing: { after: 80 },
         border: { bottom: { style: BorderStyle.DOTTED, size: 1, color: "d1d5db" } },
@@ -1133,13 +1134,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }
 
     // --- TBE SECTION ---
-    if (tbeData) {
+    if (exportTbeData) {
       docChildren.push(new Paragraph({ children: [new PageBreak()] }));
       docChildren.push(new Paragraph({
         children: [
           new Bookmark({
             id: tbeAnchor,
-            children: [new TextRun({ text: "Technical Bid Evaluation (TBE)", bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING })],
+            children: [new TextRun({ text: "Appendix A: Detailed Technical Bid Evaluation (TBE)", bold: true, size: SIZE_H1, color: brandColor, font: FONT_HEADING })],
           }),
         ],
         heading: HeadingLevel.HEADING_1,
@@ -1148,17 +1149,17 @@ export async function GET(request: Request, { params }: { params: { id: string }
         keepNext: true,
       }));
       docChildren.push(new Paragraph({
-        children: [new TextRun({ text: `${tbeData.lineItems.length} line items × ${tbeData.tags.length} evaluation tags`, size: SIZE_BODY, color: "666666", font: FONT_BODY })],
+        children: [new TextRun({ text: `${exportTbeData.lineItems.length} line items × ${exportTbeData.tags.length} evaluation tags`, size: SIZE_BODY, color: "666666", font: FONT_BODY })],
         spacing: { after: 300 },
       }));
 
-      for (let liIdx = 0; liIdx < tbeData.lineItems.length; liIdx++) {
+      for (let liIdx = 0; liIdx < exportTbeData.lineItems.length; liIdx++) {
         // Line item sub-heading
         if (liIdx > 0) {
           docChildren.push(new Paragraph({ spacing: { before: 300 } }));
         }
         docChildren.push(new Paragraph({
-          children: [new TextRun({ text: `${tbeData.lineItems[liIdx]}`, bold: true, size: SIZE_H2, color: brandColor, font: FONT_HEADING })],
+          children: [new TextRun({ text: `${exportTbeData.lineItems[liIdx]}`, bold: true, size: SIZE_H2, color: brandColor, font: FONT_HEADING })],
           spacing: { before: 200, after: 120 },
         }));
 
@@ -1178,8 +1179,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
           ],
         });
 
-        const tbeRows = tbeData.tags.map((tag) => {
-          const cellText = tbeData!.cells[`${liIdx}-${tag}`] ?? "—";
+        const tbeRows = exportTbeData.tags.map((tag) => {
+          const cellText = exportTbeData.cells[`${liIdx}-${tag}`] ?? "—";
           return new TableRow({
             children: [
               new TableCell({

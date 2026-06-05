@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { formatArtifactTitle } from "../lib/engineering-artifacts";
 import { generateProposalHtml } from "../lib/pdf-template";
-import { HYDROGEN_EXECUTIVE_ROI_TEXT } from "../lib/severe-service-intelligence";
+import { HYDROGEN_EXECUTIVE_ROI_TEXT, HYDROGEN_TBE_LINE_ITEMS, HYDROGEN_TBE_TAGS } from "../lib/severe-service-intelligence";
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
@@ -62,13 +62,11 @@ const html = generateProposalHtml({
   includeDiagrams: true,
   complianceItems,
   tbeData: {
-    lineItems: ["Hydrogen pressure control valve"],
-    tags: ["Material", "Leakage", "Documentation"],
-    cells: {
-      "0-Material": "Hydrogen material compatibility reviewed at proposal stage.",
-      "0-Leakage": "Class V requested for selected tags; engineering validation required.",
-      "0-Documentation": "MDR, MTC, PMI, ITP, and QAP evidence mapped.",
-    },
+    lineItems: HYDROGEN_TBE_LINE_ITEMS,
+    tags: HYDROGEN_TBE_TAGS,
+    cells: Object.fromEntries(HYDROGEN_TBE_LINE_ITEMS.flatMap((_, lineIndex) =>
+      HYDROGEN_TBE_TAGS.map((tag) => [`${lineIndex}-${tag}`, `${tag} response mapped for proposal-stage TBE review.`])
+    )),
   },
   extractedData: {
     title: "Hydrogen Process Control Valve Package",
@@ -104,6 +102,7 @@ assertNotIncludes(html, "42%</div>", "Cover score");
 assertNotIncludes(html, "Bid Score 88%", "Bid score consistency");
 assertNotIncludes(html, "final bid score 88%", "Bid score consistency");
 assertIncludes(html, "Proposal Sections", "Cover score");
+assertIncludes(html, "Proposal Sections</div>\n        <div style=\"font-size:28px;font-weight:800;\">23</div>", "Cover section count");
 assertIncludes(html, "Proposal Status", "Cover score");
 assertIncludes(html, "Draft / Demo", "Cover score");
 assertIncludes(html, "5.0 days", "Executive ROI metrics");
@@ -117,11 +116,23 @@ assertIncludes(html, HYDROGEN_EXECUTIVE_ROI_TEXT, "Executive ROI exact narrative
 for (const badRoiClaim of ["20% cycle time reduction", "15% engineering hours saved", "25% compliance review reduction", "INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "INR 2 crore", "INR 4 crore", "₹2 Cr", "₹4 Cr"]) {
   assertNotIncludes(html, badRoiClaim, "Executive ROI narrative");
 }
+for (const staleRoiClaim of ["30% proposal cycle reduction", "20% resource allocation saving", "25% productivity increase"]) {
+  assertNotIncludes(html, staleRoiClaim, "Stale generic ROI claims");
+}
 for (const commercialNeedle of ["Proposal validity: 60 days", "HV-H2-3101A/B/C/D", "FV-H2-3150A/B", "PV-H2-3190", "DOC-H2 MDR Dossier"]) {
   assertIncludes(html, commercialNeedle, "Commercial Summary");
 }
 for (const deliveryNeedle of ["Drawing submission", "Manufacturing lead time", "Inspection and testing", "Shipping readiness"]) {
   assertIncludes(html, deliveryNeedle, "Project Timeline & Delivery");
+}
+assertIncludes(html, "Appendix A. Detailed Technical Bid Evaluation (TBE)", "TBE appendix TOC");
+assertIncludes(html, "Appendices: 1 TBE", "Cover appendix count");
+assertIncludes(html, `${HYDROGEN_TBE_LINE_ITEMS.length} line items × ${HYDROGEN_TBE_TAGS.length} evaluation tags`, "TBE dimensions");
+for (const lineItem of HYDROGEN_TBE_LINE_ITEMS) {
+  assertIncludes(html, lineItem, "TBE line items");
+}
+for (const tag of HYDROGEN_TBE_TAGS) {
+  assertIncludes(html, tag, "TBE tags");
 }
 for (const drawingTitle of [
   "PFD-style Hydrogen Service System Topology",
@@ -164,6 +175,7 @@ for (const cssCheck of [
   ".section-title { font-size:15px",
   ".section-body { font-size:10.8pt",
   ".section-body p { margin:0 0 10px 0",
+  ".content-table { width:100%; border-collapse:collapse;",
   ".compliance-table",
   ".die-card { display:block; background:white; border:1px solid #cbd5e1; border-radius:8px; margin:8px auto 12px;",
   ".die-card + .die-card { break-before: page; page-break-before: always; }",
@@ -185,8 +197,11 @@ async function main() {
 
   assertIncludes(pdfTemplate, "getCoverBranding", "PDF template");
   assertIncludes(pdfTemplate, "WinsProposal Demo Engine", "PDF template");
+  assertIncludes(pdfTemplate, "Appendix A. Detailed Technical Bid Evaluation (TBE)", "PDF template");
+  assertIncludes(pdfTemplate, "HYDROGEN_EXECUTIVE_ROI_TEXT", "PDF template");
   assertIncludes(docxRoute, "proposal-stage requirements mapped", "DOCX export");
   assertIncludes(docxRoute, "Bid Readiness Score", "DOCX export");
+  assertIncludes(docxRoute, "Appendix A. Detailed Technical Bid Evaluation (TBE)", "DOCX export");
   assertIncludes(pdfRoute, "Proposal-stage engineering estimate", "PDF footer");
 
   console.log(JSON.stringify({

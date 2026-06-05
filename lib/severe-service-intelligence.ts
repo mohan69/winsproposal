@@ -24,12 +24,93 @@ export const HYDROGEN_DELIVERY_TIMELINE_TEXT = `| Milestone | Indicative Timelin
 | Shipping readiness | 3 weeks after test clearance | Subject to release note and documentation acceptance |
 | Final MDR/data book | With dispatch / post-final inspection | Includes MTC, PMI, test records, certificates, and deviation register |`;
 
+export const HYDROGEN_BID_NO_BID_TEXT = `| Bid Dimension | Score | Rationale |
+|---|---:|---|
+| Technical fit | 82/100 | Strong severe-service fit; hydrogen compatibility notes, leakage/sealing response, and datasheet summary covered. |
+| Commercial attractiveness | 78/100 | Bid value and reuse are attractive; final pricing, exclusions, and payment terms still require commercial review. |
+| Strategic fit | 84/100 | Hydrogen and severe-service proposal capability aligns with strategic industrial growth themes. |
+| Margin risk | 70/100 | Specialty trim, accessories, testing, and documentation can affect margin until final scope freeze. |
+| Delivery risk | 74/100 | Schedule is feasible if drawing review, long-lead items, and witness points are confirmed early. |
+| Bid Readiness Score | 78% | Recommendation: Bid with engineering and commercial validation. |
+
+Bid governance note: Bid Readiness Score 78%. Score is a proposal-stage decision aid, not an approval record.`;
+
+export const HYDROGEN_EXECUTIVE_DASHBOARD_TEXT = `| Executive Metric | Demo Value | Management Readout |
+|---|---:|---|
+| Win probability | 87% | Strong fit if engineering and commercial assumptions close before submission. |
+| Compliance coverage | 92% | Mandatory clauses mapped with remaining items routed for review. |
+| Risk status | Medium managed | Hydrogen compatibility, material compatibility, leakage class, high-integrity sealing, traceability, and process safety are tracked. |
+| Engineering review pending items | 5 | Process cases, final sizing, material compatibility, leakage class, hazardous-area accessories. |
+| Proposal readiness score | 78% | Ready for proposal-demo review; final submission needs engineering and commercial sign-off. |
+| Vault reuse | 58% | Knowledge-backed sections reduce drafting and review load. |
+| Engineering hours saved | 28 hours | Avoided repetitive datasheet, TBE, compliance, and drawing-prep work. |`;
+
+export const HYDROGEN_TBE_SUMMARY_TEXT = `Detailed Technical Bid Evaluation (TBE) is included as Appendix A.
+
+| TBE Summary Item | Proposal-Stage Basis |
+|---|---|
+| Line items | Hydrogen pressure control valve; Hydrogen flow control valve; Export header control valve; Traceability and compliance dossier |
+| Evaluation tags | Material; Pressure Rating; Size; End Connection; Body Type; Bonnet Type; Packing; Testing; Certification |
+| Matrix size | 4 line items × 9 evaluation tags |
+| Review status | Proposal-stage responses mapped; engineering validation required before final submission |
+
+TBE note: Detailed tag-by-tag responses are proposal-stage content for demo review and must be validated against final RFP clauses, customer specifications, and approved engineering/commercial review before submission.`;
+
+export const HYDROGEN_TBE_LINE_ITEMS = [
+  "Hydrogen pressure control valve",
+  "Hydrogen flow control valve",
+  "Export header control valve",
+  "Traceability and compliance dossier",
+];
+
+export const HYDROGEN_TBE_TAGS = [
+  "Material",
+  "Pressure Rating",
+  "Size",
+  "End Connection",
+  "Body Type",
+  "Bonnet Type",
+  "Packing",
+  "Testing",
+  "Certification",
+];
+
+export type SevereServiceTbeData = {
+  lineItems: string[];
+  tags: string[];
+  cells: Record<string, string>;
+};
+
+export function normalizeHydrogenTbeData(tbeData: SevereServiceTbeData | null | undefined): SevereServiceTbeData | null {
+  if (!tbeData) return null;
+  const originalTags = tbeData.tags ?? [];
+  const cells: Record<string, string> = {};
+  for (let lineIndex = 0; lineIndex < HYDROGEN_TBE_LINE_ITEMS.length; lineIndex++) {
+    for (let tagIndex = 0; tagIndex < HYDROGEN_TBE_TAGS.length; tagIndex++) {
+      const tag = HYDROGEN_TBE_TAGS[tagIndex];
+      const originalTag = originalTags[tagIndex] ?? tag;
+      cells[`${lineIndex}-${tag}`] =
+        tbeData.cells?.[`${lineIndex}-${tag}`] ??
+        tbeData.cells?.[`${lineIndex}-${originalTag}`] ??
+        "Proposal-stage response mapped; engineering validation required before final submission.";
+    }
+  }
+  return {
+    lineItems: HYDROGEN_TBE_LINE_ITEMS,
+    tags: HYDROGEN_TBE_TAGS,
+    cells,
+  };
+}
+
 export function getHydrogenSectionContentOverride(sectionTitle: string) {
   if (/executive roi impact summary/i.test(sectionTitle)) return `${HYDROGEN_EXECUTIVE_ROI_TEXT}
 
 ${SEVERE_SERVICE_DISCLAIMER}`;
   if (/commercial summary/i.test(sectionTitle)) return HYDROGEN_COMMERCIAL_SUMMARY_TEXT;
   if (/project timeline|delivery schedule|timeline.*delivery/i.test(sectionTitle)) return HYDROGEN_DELIVERY_TIMELINE_TEXT;
+  if (/technical bid evaluation summary/i.test(sectionTitle)) return HYDROGEN_TBE_SUMMARY_TEXT;
+  if (/bid\s*\/\s*no-bid|bid.*scoring/i.test(sectionTitle)) return HYDROGEN_BID_NO_BID_TEXT;
+  if (/executive dashboard/i.test(sectionTitle)) return HYDROGEN_EXECUTIVE_DASHBOARD_TEXT;
   return null;
 }
 
@@ -463,6 +544,7 @@ Extraction status: proposal-ready intelligence generated for demo review. Final 
 
 function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any) {
   const hydrogen = intelligence.applicationId === "hydrogen-process-control";
+  if (hydrogen) return HYDROGEN_BID_NO_BID_TEXT;
   const technical = hydrogen ? 82 : 86;
   const commercial = hydrogen ? 78 : 80;
   const strategic = hydrogen ? 84 : 88;
@@ -506,8 +588,9 @@ function deliveryTimeline(intelligence: RfpIntelligence) {
 }
 
 function executiveDashboardSnapshot(intelligence: RfpIntelligence, extractedData: any) {
+  if (intelligence.applicationId === "hydrogen-process-control") return HYDROGEN_EXECUTIVE_DASHBOARD_TEXT;
   const dashboard = extractedData?.dashboard ?? {};
-  const win = valueFromObject(dashboard, ["Win probability score", "winProbability"]) || (intelligence.applicationId === "hydrogen-process-control" ? "87%" : "89%");
+  const win = valueFromObject(dashboard, ["Win probability score", "winProbability"]) || "89%";
   const compliance = valueFromObject(dashboard, ["Compliance coverage", "complianceCoverage"]) || "92%";
   const reuse = valueFromObject(dashboard, ["Reusable engineering content", "reuse"]) || "58%";
   const hours = valueFromObject(dashboard, ["Engineering hours saved", "engineeringHoursSaved"]) || "28";
@@ -553,7 +636,9 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
     "Valve Configuration / Trim / Actuator / Accessories": `Preliminary configuration should be selected for ${intelligence.application} with severe-service trim, actuator, positioner, solenoid, limit switch, airset/filter regulator, tubing/fittings, and fail-action requirements reviewed against the RFP. Final valve style, trim staging, noise treatment, and actuator sizing require engineer validation.`,
     "Datasheet Summary": lineItemRows || `| Tag / Ref | Item Description | Qty | Service | Review Status |\n|---|---:|---:|---|---|\n| TBD | ${intelligence.valveType} | TBD | ${intelligence.serviceType} | Requires RFP tag confirmation |`,
     "Compliance Matrix": intelligence.complianceItems.map((item) => `- ${item.label}: ${item.standard}`).join("\n"),
-    "Technical Bid Evaluation Summary": `TBE tags: ${intelligence.tbeTags.join(", ")}.\n\nEvaluate material, trim, pressure class, actuator, accessories, testing, inspection, documentation, deviations, and engineering comments for each line item.`,
+    "Technical Bid Evaluation Summary": intelligence.applicationId === "hydrogen-process-control"
+      ? HYDROGEN_TBE_SUMMARY_TEXT
+      : `TBE tags: ${intelligence.tbeTags.join(", ")}.\n\nEvaluate material, trim, pressure class, actuator, accessories, testing, inspection, documentation, deviations, and engineering comments for each line item.`,
     "Inspection and Testing Plan": "Inspection plan should include ITP/QAP review, material traceability, PMI/NDE where applicable, hydrotest, seat leakage test, functional stroke test, accessory checks, witness/hold points, final inspection, release note, and dossier review.",
     "QA/QC and Documentation Plan": "QA/QC plan should govern material certificates, traceability, MDR/data book, inspection records, test certificates, datasheets, GA drawings, calculation summary, deviation register, O&M documents, and final release approvals.",
     "Drawings and Technical Visuals": drawingGallery(intelligence),

@@ -9,10 +9,15 @@ import {
   ImageRun,
   Packer,
   Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableRow,
   TextRun,
+  WidthType,
 } from "docx";
 import { buildDrawingPackages, drawingTypeLabel, type DrawingPackage } from "../lib/drawing-intelligence";
-import { ensureSevereServiceSections, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence } from "../lib/severe-service-intelligence";
+import { ensureSevereServiceSections, HYDROGEN_EXECUTIVE_ROI_TEXT, HYDROGEN_TBE_LINE_ITEMS, HYDROGEN_TBE_TAGS, inferRfpIntelligence } from "../lib/severe-service-intelligence";
 import { getBestVisualizationType, getFallbackVisualization, getMermaidImageUrl } from "../lib/visualization-service";
 
 function assert(condition: unknown, message: string) {
@@ -83,7 +88,7 @@ async function buildVerificationDocx() {
     ["Engineering Basis", "RFP process inputs, proposal-stage assumptions, ISA IEC sizing review, ASME and materials review, risk flags, and qualified engineer validation."],
     ["Commercial Summary", "Scope, cost drivers, delivery schedule, risk allowance, price justification, and margin protection."],
   ];
-  const children: Paragraph[] = [
+  const children: Array<Paragraph | Table> = [
     new Paragraph({ children: [new TextRun({ text: "Hydrogen Process Control Valve Package", bold: true, size: 30, color: brandColor })], spacing: { after: 240 } }),
     ...generatedSections.map((section) => new Paragraph({
       children: [new TextRun({ text: `${section.title}\n${section.content}`, size: 20 })],
@@ -115,6 +120,28 @@ async function buildVerificationDocx() {
     }));
     children.push(new Paragraph({ children: [new TextRun({ text: `Tags used: ${drawing.tagsUsed.join(", ") || "TBD"}`, bold: true, size: 18 })], spacing: { after: 80 } }));
     children.push(new Paragraph({ children: [new TextRun({ text: `Engineering notes: ${drawing.engineeringReviewNotes.join(" ")}`, size: 18 })], spacing: { after: 120 } }));
+  }
+  children.push(new Paragraph({ children: [new TextRun({ text: "Appendix A: Detailed Technical Bid Evaluation (TBE)", bold: true, size: 24, color: brandColor })], heading: HeadingLevel.HEADING_1, spacing: { before: 260, after: 100 }, keepNext: true }));
+  children.push(new Paragraph({ children: [new TextRun({ text: `${HYDROGEN_TBE_LINE_ITEMS.length} line items × ${HYDROGEN_TBE_TAGS.length} evaluation tags`, size: 18, color: "4b5563" })], spacing: { after: 120 } }));
+  for (const lineItem of HYDROGEN_TBE_LINE_ITEMS) {
+    children.push(new Paragraph({ children: [new TextRun({ text: lineItem, bold: true, size: 20, color: brandColor })], spacing: { before: 120, after: 60 }, keepNext: true }));
+    children.push(new Table({
+      width: { size: 9600, type: WidthType.DXA },
+      rows: [
+        new TableRow({
+          children: ["Evaluation Tag", "Response"].map((header) => new TableCell({
+            children: [new Paragraph({ children: [new TextRun({ text: header, bold: true, color: "FFFFFF", size: 16 })] })],
+            shading: { type: ShadingType.SOLID, color: brandColor },
+          })),
+        }),
+        ...HYDROGEN_TBE_TAGS.map((tag) => new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: tag, bold: true, color: brandColor, size: 15 })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${tag} response mapped for proposal-stage TBE review.`, size: 15 })] })] }),
+          ],
+        })),
+      ],
+    }));
   }
   const doc = new Document({
     sections: [{
@@ -178,11 +205,12 @@ async function main() {
     "Hydrogen Valve Package Schematic",
     "Material Traceability / MDR Workflow",
     "Inspection and Dossier Workflow",
+    "Appendix A: Detailed Technical Bid Evaluation (TBE)",
   ]) {
     assert(xmlText.includes(title), `DOCX: missing visual title ${title}`);
   }
   assert(xmlText.includes(HYDROGEN_EXECUTIVE_ROI_TEXT), "DOCX: missing exact Hydrogen executive ROI narrative");
-  for (const forbidden of ["20% cycle time reduction", "15% engineering hours saved", "25% compliance review reduction", "INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "Bid Score 88%", "final bid score 88%", "CCI Severe Service Solutions"]) {
+  for (const forbidden of ["30% proposal cycle reduction", "20% resource allocation saving", "25% productivity increase", "20% cycle time reduction", "15% engineering hours saved", "25% compliance review reduction", "INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "Bid Score 88%", "final bid score 88%", "CCI Severe Service Solutions"]) {
     assert(!xmlText.includes(forbidden), `DOCX: forbidden text present: ${forbidden}`);
   }
   for (const required of [
@@ -196,6 +224,9 @@ async function main() {
   ]) {
     assert(xmlText.includes(required), `DOCX: missing required text: ${required}`);
   }
+  assert(xmlText.includes(`${HYDROGEN_TBE_LINE_ITEMS.length} line items × ${HYDROGEN_TBE_TAGS.length} evaluation tags`), "DOCX: missing TBE dimensions");
+  for (const lineItem of HYDROGEN_TBE_LINE_ITEMS) assert(xmlText.includes(lineItem), `DOCX: missing TBE line item ${lineItem}`);
+  for (const tag of HYDROGEN_TBE_TAGS) assert(xmlText.includes(tag), `DOCX: missing TBE tag ${tag}`);
   for (const routeCheck of [
     "new ImageRun",
     "type: \"png\"",
@@ -204,6 +235,8 @@ async function main() {
     "shouldRenderProposalDiagram",
     "Proposal-stage engineering estimate",
     "WinsProposal Demo Engine | Confidential Demo Proposal",
+    "Appendix A. Detailed Technical Bid Evaluation (TBE)",
+    "normalizeHydrogenTbeData",
   ]) {
     assert(routeSource.includes(routeCheck), `DOCX route: missing ${routeCheck}`);
   }

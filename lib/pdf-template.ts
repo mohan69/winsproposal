@@ -3,7 +3,7 @@
  */
 
 import { getBestVisualizationType, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
-import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import { buildEngineeringArtifact, formatArtifactTitle, renderArtifactForPdf } from "@/lib/engineering-artifacts";
 
 interface PdfSection {
@@ -113,6 +113,7 @@ function getCoverBranding(data: PdfData, templateIndustry: string, severeService
 }
 
 function getCoverBidReadinessScore(data: PdfData, severeServiceExport: boolean) {
+  if (/hydrogen/i.test(`${data.title} ${data.templateType} ${data.industry} ${JSON.stringify(data.extractedData ?? {})}`)) return 78;
   const extracted = data.extractedData ?? {};
   const candidates = [
     extracted?.bidReadinessScore,
@@ -130,62 +131,75 @@ function getCoverBidReadinessScore(data: PdfData, severeServiceExport: boolean) 
   return Math.max(0, Math.min(100, Math.round(data.winScore || 78)));
 }
 
+function markdownInlineToHtml(value: unknown): string {
+  return escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+}
+
+function isMarkdownTableLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.split("|").length >= 3;
+}
+
+function isMarkdownSeparatorLine(line: string): boolean {
+  return isMarkdownTableLine(line) && line.split("|").filter(Boolean).every((cell) => /^[\s\-:]+$/.test(cell));
+}
+
+function markdownCells(line: string): string[] {
+  return line.split("|").slice(1, -1).map((cell) => markdownInlineToHtml(cell.trim()));
+}
+
+function buildMarkdownTable(lines: string[]): string {
+  const hasSeparator = lines.length > 1 && isMarkdownSeparatorLine(lines[1]);
+  const header = markdownCells(lines[0]);
+  const bodyLines = hasSeparator ? lines.slice(2) : lines.slice(1);
+  return `<table class="content-table">
+    <thead><tr>${header.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead>
+    <tbody>${bodyLines.map((line) => `<tr>${markdownCells(line).map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table>`;
+}
+
 function markdownToHtml(text: string): string {
   if (!text) return "";
-  let html = escapeHtml(text)
-    // Bold
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    // Italic
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    // Headers within content
-    .replace(/^### (.+)$/gm, '<h4 style="font-size:13px;font-weight:700;margin:12px 0 6px;color:#1a365d;">$1</h4>')
-    .replace(/^## (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:14px 0 8px;color:#1a365d;">$1</h3>')
-    // Bullet points
-    .replace(/^[\-•] (.+)$/gm, '<li style="margin:2px 0;padding-left:4px;">$1</li>')
-    // Numbered lists
-    .replace(/^\d+\.\s(.+)$/gm, '<li style="margin:2px 0;padding-left:4px;">$1</li>')
-    // Tables
-    .replace(/\|(.+?)\|/g, (match) => {
-      const cells = match.split("|").filter(Boolean).map((c) => c.trim());
-      if (cells.every((c) => /^[\-:]+$/.test(c))) return ""; // separator row
-      const isHeader = cells.some((c) => /^\*\*/.test(c));
-      const tag = isHeader ? "th" : "td";
-      const cellStyle = isHeader
-        ? 'style="background:#f0f4f8;padding:8px 12px;text-align:left;font-weight:600;font-size:11px;border:1px solid #d1d5db;"'
-        : 'style="padding:8px 12px;text-align:left;font-size:11px;border:1px solid #d1d5db;"';
-      return `<tr>${cells.map((c) => `<${tag} ${cellStyle}>${c.replace(/\*\*/g, "")}</${tag}>`).join("")}</tr>`;
-    });
-
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/(<li[^>]*>.*?<\/li>\n?)+/g, (match) =>
-    `<ul style="margin:8px 0;padding-left:20px;">${match}</ul>`
-  );
-
-  // Wrap consecutive <tr> in <table>
-  html = html.replace(/(<tr>.*?<\/tr>\n?)+/g, (match) =>
-    `<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:11px;">${match}</table>`
-  );
-
-  // Paragraphs (lines not already wrapped)
-  html = html
-    .split("\n")
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return '<div style="height:6px;"></div>';
-      if (
-        trimmed.startsWith("<h") ||
-        trimmed.startsWith("<ul") ||
-        trimmed.startsWith("<table") ||
-        trimmed.startsWith("<li") ||
-        trimmed.startsWith("<tr") ||
-        trimmed.startsWith("<div")
-      )
-        return trimmed;
-      return `<p>${trimmed}</p>`;
-    })
-    .join("\n");
-
-  return html;
+  const lines = text.split("\n");
+  const blocks: string[] = [];
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      blocks.push('<div style="height:6px;"></div>');
+      continue;
+    }
+    if (isMarkdownTableLine(line)) {
+      const tableLines = [line];
+      while (index + 1 < lines.length && isMarkdownTableLine(lines[index + 1])) {
+        tableLines.push(lines[index + 1]);
+        index++;
+      }
+      blocks.push(buildMarkdownTable(tableLines));
+      continue;
+    }
+    if (/^###\s+/.test(trimmed)) {
+      blocks.push(`<h4 style="font-size:13px;font-weight:700;margin:12px 0 6px;color:#1a365d;">${markdownInlineToHtml(trimmed.replace(/^###\s+/, ""))}</h4>`);
+      continue;
+    }
+    if (/^##\s+/.test(trimmed)) {
+      blocks.push(`<h3 style="font-size:14px;font-weight:700;margin:14px 0 8px;color:#1a365d;">${markdownInlineToHtml(trimmed.replace(/^##\s+/, ""))}</h3>`);
+      continue;
+    }
+    if (/^[\-•]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed)) {
+      const listItems = [trimmed];
+      while (index + 1 < lines.length && (/^[\-•]\s+/.test(lines[index + 1].trim()) || /^\d+\.\s+/.test(lines[index + 1].trim()))) {
+        listItems.push(lines[index + 1].trim());
+        index++;
+      }
+      blocks.push(`<ul style="margin:8px 0;padding-left:20px;">${listItems.map((item) => `<li style="margin:2px 0;padding-left:4px;">${markdownInlineToHtml(item.replace(/^[\-•]\s+/, "").replace(/^\d+\.\s+/, ""))}</li>`).join("")}</ul>`);
+      continue;
+    }
+    blocks.push(`<p>${markdownInlineToHtml(trimmed)}</p>`);
+  }
+  return blocks.join("\n");
 }
 
 function getPdfDiagramSteps(type: VisualizationType, sectionTitle = "", content = ""): string[] {
@@ -382,7 +396,7 @@ function buildExecutiveRoiCoverHtml(data: PdfData, brandColor: string, safeAppli
       `).join("")}
     </div>
     <div class="roi-note">
-      <strong>Executive readout:</strong> WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours.
+      <strong>Executive readout:</strong> ${escapeHtml(HYDROGEN_EXECUTIVE_ROI_TEXT)}
     </div>
     <div class="roi-disclaimer">Proposal-stage productivity model. These figures are indicative estimates and should be validated against the customer's actual baseline.</div>
   </div>`;
@@ -481,12 +495,14 @@ export function generateProposalHtml(data: PdfData): string {
     standard: escapeHtml(item.standard ?? ""),
     checked: !!item.checked,
   }));
+  const proposalSectionCount = safeSections.length + (safeComplianceItems.length > 0 ? 1 : 0);
+  const appendixCount = safeTbeData ? 1 : 0;
 
   // Build TOC
   const tocEntries = [
     ...safeSections.map((s, i) => ({ label: `${i + 1}. ${s.sectionTitle}`, href: `#section-${i + 1}` })),
     ...(safeComplianceItems.length > 0 ? [{ label: `${safeSections.length + 1}. Compliance Checklist`, href: "#compliance-checklist" }] : []),
-    ...(safeTbeData ? [{ label: `${safeSections.length + (safeComplianceItems.length > 0 ? 2 : 1)}. Technical Bid Evaluation (TBE)`, href: "#technical-bid-evaluation" }] : []),
+    ...(safeTbeData ? [{ label: "Appendix A. Detailed Technical Bid Evaluation (TBE)", href: "#technical-bid-evaluation" }] : []),
   ];
   const tocItems = tocEntries
     .map(
@@ -573,6 +589,11 @@ export function generateProposalHtml(data: PdfData): string {
     .section-title { font-size:15px; font-weight:700; letter-spacing:0.2px; color:#0f3440; margin:0; line-height:1.25; }
     .section-body { font-size:10.8pt; line-height:1.55; color:#1f2933; max-width:168mm; }
     .section-body p { margin:0 0 10px 0; max-width:162mm; }
+    .content-table { width:100%; border-collapse:collapse; background:white; font-size:9.2px; margin:10px 0 14px; break-inside:auto; page-break-inside:auto; }
+    .content-table thead { display:table-header-group; }
+    .content-table tr { break-inside:avoid; page-break-inside:avoid; }
+    .content-table th { background:#eff6ff; color:#111827; text-align:left; padding:7px 8px; border:1px solid #cbd5e1; font-weight:800; line-height:1.25; }
+    .content-table td { padding:7px 8px; border:1px solid #d1d5db; vertical-align:top; line-height:1.35; }
     .source-badge { background:#d1fae5; color:#065f46; font-size:9px; padding:2px 8px; border-radius:10px; white-space:nowrap; }
     .section-intro { break-after: avoid; page-break-after: avoid; orphans: 3; widows: 3; }
     .section-page p { text-align: left; margin: 0 0 10px 0; line-height: 1.55; }
@@ -690,7 +711,8 @@ export function generateProposalHtml(data: PdfData): string {
       </div>
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
         <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Proposal Sections</div>
-        <div style="font-size:28px;font-weight:800;">${data.sections.length}</div>
+        <div style="font-size:28px;font-weight:800;">${proposalSectionCount}</div>
+        ${appendixCount ? `<div style="font-size:8.5px;opacity:0.75;margin-top:2px;">Appendices: ${appendixCount} TBE</div>` : ""}
       </div>
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
         <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Vault Sources</div>
@@ -719,7 +741,7 @@ export function generateProposalHtml(data: PdfData): string {
     ${tocItems}
     <div style="margin-top:30px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
       <div style="font-size:11px;color:#065f46;">
-        <strong>Vault Coverage:</strong> ${data.vaultSectionsUsed} of ${data.sections.length} sections sourced from knowledge vault (${data.vaultDocumentsUsed} documents referenced)
+        <strong>Vault Coverage:</strong> ${data.vaultSectionsUsed} of ${proposalSectionCount} proposal sections sourced from knowledge vault (${data.vaultDocumentsUsed} documents referenced)
       </div>
       ${vaultCategoryHtml}
     </div>
@@ -770,9 +792,10 @@ export function generateProposalHtml(data: PdfData): string {
   ${safeTbeData.lineItems.map((lineItem, liIdx) => `
   <div id="${liIdx === 0 ? "technical-bid-evaluation" : `technical-bid-evaluation-${liIdx + 1}`}" class="page section-page">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid ${brandColor};">
-      <div style="background:${brandColor};color:white;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;">TBE</div>
-      <h2 style="font-size:16px;font-weight:700;color:${brandColor};margin:0;">Technical Bid Evaluation — ${lineItem}</h2>
+      <div style="background:${brandColor};color:white;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700;">${liIdx === 0 ? "APPENDIX A" : "TBE"}</div>
+      <h2 style="font-size:16px;font-weight:700;color:${brandColor};margin:0;">${liIdx === 0 ? "Detailed Technical Bid Evaluation (TBE)" : "Technical Bid Evaluation"} — ${lineItem}</h2>
     </div>
+    ${liIdx === 0 ? `<p style="font-size:10.5px;color:#4b5563;margin-bottom:12px;">${safeTbeData.lineItems.length} line items × ${safeTbeData.tags.length} evaluation tags</p>` : ""}
     <table style="width:100%;border-collapse:collapse;font-size:10.5px;">
       <thead>
         <tr>
