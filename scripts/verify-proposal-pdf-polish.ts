@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { formatArtifactTitle } from "../lib/engineering-artifacts";
 import { generateProposalHtml } from "../lib/pdf-template";
+import { HYDROGEN_EXECUTIVE_ROI_TEXT } from "../lib/severe-service-intelligence";
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
@@ -17,7 +18,7 @@ function assertNotIncludes(haystack: string, needle: string, context: string) {
 
 const templateType = "Hydrogen Process Control Valve Proposal | Application: Hydrogen Process Control / Export Header Control | Industry: Severe-Service Control Valves | Package Type: Severe-Service Control Valve Proposal";
 const sections = [
-  { id: "roi", sectionTitle: "Executive ROI Impact Summary", content: "WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours. Estimated annual productivity savings are shown as INR 34-42 lakh based on the demo baseline. These figures are indicative proposal-stage estimates and should be validated against the customer's actual baseline.", sourceType: "generated" },
+  { id: "roi", sectionTitle: "Executive ROI Impact Summary", content: HYDROGEN_EXECUTIVE_ROI_TEXT, sourceType: "generated" },
   { id: "exec", sectionTitle: "Executive Summary", content: "Hydrogen severe-service proposal summary with customer requirement, delivery confidence, risk reduction, commercial value, and win theme.", sourceType: "generated" },
   { id: "background", sectionTitle: "Project Background / Opportunity Context", content: "Hydrogen hub project, process criticality, severe service valve requirement, compliance standards, OEM/EPC evaluation, and bid opportunity.", sourceType: "generated" },
   { id: "scope", sectionTitle: "Scope of Supply / Line Items", content: "RFP scope, valve package, actuator accessories, documentation, inspection, testing, and delivery.", sourceType: "generated" },
@@ -112,7 +113,8 @@ assertIncludes(html, "36 hours", "Executive ROI metrics");
 assertIncludes(html, "14 hours", "Executive ROI metrics");
 assertIncludes(html, "6 hours", "Executive ROI metrics");
 assertIncludes(html, "INR 34-42 lakh", "Executive ROI metrics");
-for (const badRoiClaim of ["INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "INR 2 crore", "INR 4 crore", "₹2 Cr", "₹4 Cr"]) {
+assertIncludes(html, HYDROGEN_EXECUTIVE_ROI_TEXT, "Executive ROI exact narrative");
+for (const badRoiClaim of ["20% cycle time reduction", "15% engineering hours saved", "25% compliance review reduction", "INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "INR 2 crore", "INR 4 crore", "₹2 Cr", "₹4 Cr"]) {
   assertNotIncludes(html, badRoiClaim, "Executive ROI narrative");
 }
 for (const commercialNeedle of ["Proposal validity: 60 days", "HV-H2-3101A/B/C/D", "FV-H2-3150A/B", "PV-H2-3190", "DOC-H2 MDR Dossier"]) {

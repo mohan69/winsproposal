@@ -12,7 +12,7 @@ import {
   TextRun,
 } from "docx";
 import { buildDrawingPackages, drawingTypeLabel, type DrawingPackage } from "../lib/drawing-intelligence";
-import { ensureSevereServiceSections, inferRfpIntelligence } from "../lib/severe-service-intelligence";
+import { ensureSevereServiceSections, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence } from "../lib/severe-service-intelligence";
 import { getBestVisualizationType, getFallbackVisualization, getMermaidImageUrl } from "../lib/visualization-service";
 
 function assert(condition: unknown, message: string) {
@@ -181,7 +181,8 @@ async function main() {
   ]) {
     assert(xmlText.includes(title), `DOCX: missing visual title ${title}`);
   }
-  for (const forbidden of ["INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "Bid Score 88%", "final bid score 88%", "CCI Severe Service Solutions"]) {
+  assert(xmlText.includes(HYDROGEN_EXECUTIVE_ROI_TEXT), "DOCX: missing exact Hydrogen executive ROI narrative");
+  for (const forbidden of ["20% cycle time reduction", "15% engineering hours saved", "25% compliance review reduction", "INR 2.1 Cr", "INR 1.5 Cr", "INR 0.8 Cr", "INR 2 Cr", "INR 4 Cr", "Bid Score 88%", "final bid score 88%", "CCI Severe Service Solutions"]) {
     assert(!xmlText.includes(forbidden), `DOCX: forbidden text present: ${forbidden}`);
   }
   for (const required of [

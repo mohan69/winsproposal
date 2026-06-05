@@ -1,6 +1,38 @@
 export const SEVERE_SERVICE_DISCLAIMER =
   "Preliminary proposal-stage engineering estimate. Final sizing/design must be validated by qualified engineers using company-approved tools and standards.";
 
+export const HYDROGEN_EXECUTIVE_ROI_TEXT =
+  "WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours. Estimated annual productivity savings are shown as INR 34-42 lakh based on the demo baseline. These figures are indicative proposal-stage estimates and should be validated against the customer’s actual baseline.";
+
+export const HYDROGEN_COMMERCIAL_SUMMARY_TEXT = `| Line Item | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
+|---|---:|---|---|---|
+| HV-H2-3101A/B/C/D | 4 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
+| FV-H2-3150A/B | 2 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
+| PV-H2-3190 | 1 | Demo placeholder / subject to final sizing and noise review | Noise review, leakage testing, MDR support where applicable | 16-18 weeks after drawing approval |
+| DOC-H2 MDR Dossier | 1 lot | Documentation package basis | Included with final MDR/data book; witness/hold point support optional | With final dispatch |
+
+Proposal validity: 60 days from bid due date.
+
+Final pricing is demo placeholder only and requires customer-specific commercial validation.`;
+
+export const HYDROGEN_DELIVERY_TIMELINE_TEXT = `| Milestone | Indicative Timeline | Dependency / Note |
+|---|---|---|
+| Drawing submission | 4 weeks from PO / technical clearance | Subject to final process data and tag details |
+| Engineering validation | 1-2 weeks after final process data | Sizing, trim, materials, actuator, and accessory validation |
+| Manufacturing lead time | 12-14 weeks after drawing approval | Subject to long-lead trims/materials/accessories |
+| Inspection and testing | 2 weeks | Hydrotest, seat leakage, functional stroke, PMI/NDE where applicable |
+| Shipping readiness | 3 weeks after test clearance | Subject to release note and documentation acceptance |
+| Final MDR/data book | With dispatch / post-final inspection | Includes MTC, PMI, test records, certificates, and deviation register |`;
+
+export function getHydrogenSectionContentOverride(sectionTitle: string) {
+  if (/executive roi impact summary/i.test(sectionTitle)) return `${HYDROGEN_EXECUTIVE_ROI_TEXT}
+
+${SEVERE_SERVICE_DISCLAIMER}`;
+  if (/commercial summary/i.test(sectionTitle)) return HYDROGEN_COMMERCIAL_SUMMARY_TEXT;
+  if (/project timeline|delivery schedule|timeline.*delivery/i.test(sectionTitle)) return HYDROGEN_DELIVERY_TIMELINE_TEXT;
+  return null;
+}
+
 export type SevereServiceApplicationId =
   | "lng-compressor-recycle"
   | "hydrogen-process-control"
@@ -372,7 +404,7 @@ Engineering validation checklist: confirm final process cases, fluid properties,
 
 function executiveRoiSummary(intelligence: RfpIntelligence, extractedData: any) {
   if (intelligence.applicationId === "hydrogen-process-control") {
-    return `WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours. Estimated annual productivity savings are shown as INR 34-42 lakh based on the demo baseline. These figures are indicative proposal-stage estimates and should be validated against the customer's actual baseline.
+    return `${HYDROGEN_EXECUTIVE_ROI_TEXT}
 
 ${SEVERE_SERVICE_DISCLAIMER}`;
   }
@@ -451,16 +483,7 @@ Bid governance note: Bid Readiness Score ${finalScore}%. Score is a proposal-sta
 
 function commercialSummary(intelligence: RfpIntelligence, extractedData: any) {
   if (intelligence.applicationId === "hydrogen-process-control") {
-    return `| Line Item | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
-|---|---:|---|---|---|
-| HV-H2-3101A/B/C/D | 4 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
-| FV-H2-3150A/B | 2 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
-| PV-H2-3190 | 1 | Demo placeholder / subject to final sizing and noise review | Noise review, leakage testing, MDR support where applicable | 16-18 weeks after drawing approval |
-| DOC-H2 MDR Dossier | 1 lot | Documentation package basis | Included with final MDR/data book; witness/hold point support optional | With final dispatch |
-
-Proposal validity: 60 days from bid due date.
-
-Final pricing is demo placeholder only and requires customer-specific commercial validation.`;
+    return HYDROGEN_COMMERCIAL_SUMMARY_TEXT;
   }
   const bidValue = extractedData?.estimatedBidValue ?? extractedData?.bidValue ?? "Pricing placeholder - to be finalized by commercial team";
   return `| Commercial Item | Proposal-Stage Position |
@@ -477,14 +500,7 @@ Commercial boundary: commercial placeholders are for customer-demo review only a
 
 function deliveryTimeline(intelligence: RfpIntelligence) {
   if (intelligence.applicationId === "hydrogen-process-control") {
-    return `| Milestone | Indicative Timeline | Dependency / Note |
-|---|---|---|
-| Drawing submission | 4 weeks from PO / technical clearance | Subject to final process data and tag details |
-| Engineering validation | 1-2 weeks after final process data | Sizing, trim, materials, actuator, and accessory validation |
-| Manufacturing lead time | 12-14 weeks after drawing approval | Subject to long-lead trims/materials/accessories |
-| Inspection and testing | 2 weeks | Hydrotest, seat leakage, functional stroke, PMI/NDE where applicable |
-| Shipping readiness | 3 weeks after test clearance | Subject to release note and documentation acceptance |
-| Final MDR/data book | With dispatch / post-final inspection | Includes MTC, PMI, test records, certificates, and deviation register |`;
+    return HYDROGEN_DELIVERY_TIMELINE_TEXT;
   }
   return "Indicative timeline should include RFP review, engineering validation, datasheet/GA drawing issue, client review, procurement, manufacturing, inspection/test, documentation compilation, dispatch, and final technical handover.";
 }

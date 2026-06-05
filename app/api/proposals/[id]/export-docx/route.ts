@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, getMermaidImageUrl, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
-import { getSevereServiceVaultSourceCategories, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getHydrogenSectionContentOverride, getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import {
   buildEngineeringArtifact,
   getProposalVisualSpec,
@@ -830,6 +830,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const templateMetadata = parseProposalTemplateMetadata(proposal.templateType);
     const intelligence = inferRfpIntelligence(extractedData ?? {});
     const severeServiceExport = /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
+    const hydrogenExport = intelligence.applicationId === "hydrogen-process-control"
+      || /hydrogen/i.test(`${proposal.title} ${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
+    const exportSections = proposal.sections.map((section) => ({
+      ...section,
+      content: hydrogenExport ? getHydrogenSectionContentOverride(section.sectionTitle) ?? section.content : section.content,
+    }));
     const createdDate = proposal.createdAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
     // Fetch logo image if available
@@ -941,12 +947,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
         border: { bottom: { style: BorderStyle.SINGLE, size: 3, color: brandColor } },
       }));
       docChildren.push(new Paragraph({
-        children: [docxText("Revenue intelligence view of proposal cycle time, engineering effort, compliance review time, reuse, bid throughput, and annual productivity savings.", { color: "4b5563", size: SIZE_BODY })],
+        children: [docxText(HYDROGEN_EXECUTIVE_ROI_TEXT, { color: "1f2937", size: SIZE_BODY })],
         spacing: { after: 160 },
       }));
-      docChildren.push(buildRoiImpactDocx(extractedData, brandColor));
       docChildren.push(new Paragraph({
-        children: [docxText("Proposal-stage productivity model. Commercial savings are indicative demo estimates and require customer-specific baseline validation.", { italics: true, color: "92400e", size: SIZE_SMALL })],
+        children: [docxText("Preliminary proposal-stage engineering estimate. Final sizing/design must be validated by qualified engineers using company-approved tools and standards.", { italics: true, color: "92400e", size: SIZE_SMALL })],
         spacing: { before: 160 },
       }));
       docChildren.push(new Paragraph({ children: [new PageBreak()] }));
@@ -960,12 +965,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
     }));
     docChildren.push(new Paragraph({ spacing: { after: 200 } }));
 
-    const sectionAnchors = proposal.sections.map((section, idx) => makeBookmarkId(`section_${idx + 1}_${section.id}`));
+    const sectionAnchors = exportSections.map((section, idx) => makeBookmarkId(`section_${idx + 1}_${section.id}`));
     const complianceAnchor = makeBookmarkId("section_compliance_checklist");
     const tbeAnchor = makeBookmarkId("section_technical_bid_evaluation");
 
     // Build linked TOC entries
-    proposal.sections.forEach((section, idx) => {
+    exportSections.forEach((section, idx) => {
       docChildren.push(new Paragraph({
         children: [
           tocLink(`${idx + 1}. ${section.sectionTitle}`, sectionAnchors[idx], brandColor),
@@ -975,7 +980,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }));
     });
 
-    let tocIdx = proposal.sections.length + 1;
+    let tocIdx = exportSections.length + 1;
     if (checklist && checklist.length > 0) {
       docChildren.push(new Paragraph({
         children: [
@@ -1004,8 +1009,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
     docChildren.push(new Paragraph({ children: [new PageBreak()] }));
 
     // --- SECTIONS ---
-    for (let idx = 0; idx < proposal.sections.length; idx++) {
-      const section = proposal.sections[idx];
+    for (let idx = 0; idx < exportSections.length; idx++) {
+      const section = exportSections[idx];
       // Section heading (Heading 1 style for TOC)
       docChildren.push(new Paragraph({
         children: [
