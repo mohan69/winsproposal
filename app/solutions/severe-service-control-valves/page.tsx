@@ -27,6 +27,7 @@ import { PublicNavbar } from "@/components/public-navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DemoVideoSection } from "@/components/marketing/DemoVideoSection";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -243,6 +244,8 @@ export default function SevereServiceControlValvesPage() {
             ))}
           </div>
         </section>
+
+        <DemoVideoSection />
 
         <section className="mx-auto max-w-[1200px] px-4 py-20">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>

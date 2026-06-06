@@ -6,6 +6,7 @@ import { VisualizationDemoLayer } from "@/components/visualization-demo-layer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DemoVideoSection } from "@/components/marketing/DemoVideoSection";
 import {
   ArrowUpRight,
   BarChart3,
@@ -93,6 +94,10 @@ export default function DemoCenterPage() {
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
             Guided demo experiences for proposal generation, drawing intelligence, knowledge reuse, KPI visibility, and export workflows.
           </p>
+        </div>
+
+        <div className="mb-8">
+          <DemoVideoSection compact />
         </div>
 
         <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
