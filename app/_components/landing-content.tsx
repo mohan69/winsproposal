@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DemoVideoSection } from "@/components/marketing/DemoVideoSection";
 
 function CountUp({ end, suffix = "" }: { end: number; suffix?: string }) {
   const [count, setCount] = useState(0);
@@ -104,12 +105,15 @@ export function LandingContent() {
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </Link>
-              <Link href="/signup">
+              <Link href="https://www.rightsense.in/48-hour-diagnostic">
                 <Button size="lg" className="bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 border border-white/30 px-8 py-6 text-base">
-                  Start Free Trial
+                  Start with 48-Hour Proposal, Compliance &amp; Standards Diagnostic
                 </Button>
               </Link>
             </motion.div>
+            <motion.p variants={fadeUp} className="mt-6 text-sm text-blue-200 max-w-2xl mx-auto">
+              Not ready for a full proposal automation pilot? Start with a 48-hour diagnostic that reviews your RFP intake, bid/no-bid workflow, technical compliance matrix, customer specification mapping, API/ASME/ANSI/IEC/ISA requirements where relevant, ISO/customer documentation expectations, inspection and test documentation, deviation and clarification handling, engineering review effort, approval workflow, and proposal audit trail.
+            </motion.p>
             <motion.div variants={fadeUp} className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-3 text-left">
               {[
                 { metric: "50%", label: "faster proposal turnaround" },
@@ -145,7 +149,7 @@ export function LandingContent() {
       <section className="max-w-[1200px] mx-auto px-4 py-20">
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="text-center mb-12">
           <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Built for the Industries Generic Tools Ignore</motion.h2>
-          <motion.p variants={fadeUp} className="text-muted-foreground max-w-2xl mx-auto">Loopio doesn&apos;t know a Gate valve from a Globe valve. ChatGPT can&apos;t calculate NPSH margins. WinsProposal was built by valve, pump, and EPC engineers — for valve, pump, and EPC engineers.</motion.p>
+            <motion.p variants={fadeUp} className="text-muted-foreground max-w-2xl mx-auto">Generic proposal tools are not built for engineering-led bids. WinsProposal is designed for EPC, valves, pumps, and industrial manufacturers where technical compliance, bid quality, and engineering effort directly affect win rate and margin.</motion.p>
         </motion.div>
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid md:grid-cols-3 gap-6">
           {[
@@ -208,7 +212,7 @@ export function LandingContent() {
         <div className="max-w-[1200px] mx-auto px-4 py-20">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="text-center mb-14">
             <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">The MOAT That Makes You Unbeatable</motion.h2>
-            <motion.p variants={fadeUp} className="text-muted-foreground max-w-2xl mx-auto">Five capabilities that no generic proposal tool, AI writing assistant, or competitor can match.</motion.p>
+            <motion.p variants={fadeUp} className="text-muted-foreground max-w-2xl mx-auto">Five capabilities that distinguish WinsProposal from generic proposal tools and AI writing assistants.</motion.p>
           </motion.div>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid sm:grid-cols-2 gap-6">
             {[
@@ -420,7 +424,7 @@ export function LandingContent() {
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="text-center mb-12">
           <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Enterprise Knowledge Preservation</motion.h2>
           <motion.p variants={fadeUp} className="text-muted-foreground max-w-2xl mx-auto">
-            Capture the bid knowledge that usually stays trapped in inboxes, spreadsheets, and senior engineers' memory, then reuse it safely across future pursuits.
+            Capture the bid knowledge that usually stays trapped in inboxes, spreadsheets, and senior engineers&apos; memory, then reuse it safely across future pursuits.
           </motion.p>
         </motion.div>
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid md:grid-cols-5 gap-4">
@@ -430,7 +434,7 @@ export function LandingContent() {
             { title: "Technical clause library", desc: "API, TBE, actuator, seal plan, NPSH, and compliance language." },
             { title: "Compliance templates", desc: "Structured matrices that map RFP clauses to response evidence." },
             { title: "Engineering response reuse", desc: "Reduce repeated SME effort while preserving review control." },
-          ].map((item, i) => (
+          ].map((item) => (
             <motion.div key={item.title} variants={fadeUp}>
               <Card className="h-full border-0 shadow-md">
                 <CardContent className="p-5">
@@ -535,7 +539,7 @@ export function LandingContent() {
               { icon: Target, step: "02", title: "Go/No-Go Score", desc: "Answer 10 strategic questions. Get a Bid/No-Bid/Conditional recommendation with risk flags before you invest time." },
               { icon: Search, step: "03", title: "AI Matches Vault", desc: "AI cross-references your Knowledge Vault and generates sub-type-specific TBE tags and compliance mappings." },
               { icon: FileText, step: "04", title: "Generate Proposal", desc: "A complete proposal with sub-type-specific sections, auto-generated PFDs, Gantt charts, and flowcharts — not generic filler." },
-              { icon: Trophy, step: "05", title: "Review & Win", desc: "Edit inline, check your Win Score, export branded PDF/DOCX, and submit a proposal that outclasses competitors." },
+              { icon: Trophy, step: "05", title: "Review & Win", desc: "Edit inline, check your Win Score, export branded PDF/DOCX, and submit a proposal that stands out for its technical depth and compliance clarity." },
             ].map((item, i) => (
               <motion.div key={i} variants={fadeUp}>
                 <Card className="h-full text-center hover:shadow-lg transition-shadow duration-300 border-0 shadow-md">
@@ -585,13 +589,93 @@ export function LandingContent() {
         </div>
       </section>
 
+      <DemoVideoSection />
+
       {/* Demo Showcase Section */}
       <section className="max-w-[1200px] mx-auto px-4 py-20">
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="text-center mb-10">
-          <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">See It In Action</motion.h2>
-          <motion.p variants={fadeUp} className="text-muted-foreground">From RFP upload to Go/No-Go decision to sub-type-specific proposal — watch the full workflow.</motion.p>
+          <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Explore the Full Demo Workflow</motion.h2>
+          <motion.p variants={fadeUp} className="text-muted-foreground">Continue from the 60-second overview into the complete RFP, Go/No-Go, proposal, and export workflow.</motion.p>
         </motion.div>
         <DemoShowcase />
+      </section>
+
+      {/* 48-Hour Diagnostic Section */}
+      <section className="bg-muted/30">
+        <div className="max-w-[1200px] mx-auto px-4 py-20">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="text-center mb-12">
+            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-sm mb-4">
+              <Target className="w-4 h-4 text-primary" />
+              RightSense 48-Hour Diagnostic
+            </motion.div>
+            <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">Not Ready for Full Automation? Start with a 48-Hour Diagnostic.</motion.h2>
+            <motion.p variants={fadeUp} className="text-muted-foreground max-w-3xl mx-auto mb-8">
+              A structured, fast-paced review of your current proposal, compliance, and standards workflows. Delivered in 48 hours with actionable findings and a clear pilot recommendation.
+            </motion.p>
+          </motion.div>
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid md:grid-cols-2 gap-8 mb-10">
+            <motion.div variants={fadeUp}>
+              <Card className="h-full border-0 shadow-md">
+                <CardContent className="p-6">
+                  <h3 className="font-display text-lg font-semibold mb-4">What We Review</h3>
+                  <ul className="space-y-3">
+                    {[
+                      "RFP intake process and response workflow",
+                      "Bid/no-bid decision framework and criteria",
+                      "Technical compliance matrix structure",
+                      "Customer specification mapping process",
+                      "API / ASME / ANSI / IEC / ISA requirements where relevant",
+                      "ISO and customer documentation expectations",
+                      "Inspection and test documentation practices",
+                      "Deviation and clarification handling process",
+                      "Engineering review effort allocation",
+                      "Approval workflow and governance",
+                      "Proposal audit trail and version control",
+                    ].map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </motion.div>
+            <motion.div variants={fadeUp}>
+              <Card className="h-full border-0 shadow-md">
+                <CardContent className="p-6">
+                  <h3 className="font-display text-lg font-semibold mb-4">Deliverables</h3>
+                  <ul className="space-y-3">
+                    {[
+                      "Proposal workflow gap map with improvement opportunities",
+                      "Compliance matrix readiness snapshot",
+                      "Technical standards mapping view across your product lines",
+                      "Proposal reuse opportunity map with quick-win recommendations",
+                      "Engineering effort reduction opportunities quantified",
+                      "30-day pilot recommendation with scope and expected outcomes",
+                    ].map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+          <motion.div variants={fadeUp} className="text-center">
+            <Link href="https://www.rightsense.in/48-hour-diagnostic">
+              <Button size="lg" className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-6 text-base">
+                Start with 48-Hour Diagnostic
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+            <p className="mt-6 text-xs text-muted-foreground max-w-2xl mx-auto">
+              The diagnostic identifies proposal, compliance, and documentation readiness gaps. It does not replace formal certification, legal review, statutory audit, regulatory approval, or customer approval.
+            </p>
+          </motion.div>
+        </div>
       </section>
 
       {/* CTA */}

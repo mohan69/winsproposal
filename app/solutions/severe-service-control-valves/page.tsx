@@ -11,7 +11,6 @@ import {
   ClipboardCheck,
   Clock,
   FileSearch,
-  FileText,
   Gauge,
   GitBranch,
   Layers,
@@ -218,8 +217,13 @@ export default function SevereServiceControlValvesPage() {
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
-                <Link href="/samples">
+                <Link href="https://www.rightsense.in/48-hour-diagnostic">
                   <Button size="lg" className="border border-white/30 bg-white/20 px-8 py-6 text-base text-white backdrop-blur-sm hover:bg-white/30">
+                    Start with 48-Hour Diagnostic
+                  </Button>
+                </Link>
+                <Link href="/samples">
+                  <Button size="lg" className="border border-white/30 bg-white/10 px-8 py-6 text-base text-white backdrop-blur-sm hover:bg-white/20">
                     View Severe-Service Demo
                   </Button>
                 </Link>
@@ -464,6 +468,30 @@ export default function SevereServiceControlValvesPage() {
                   </CardContent>
                 </Card>
               </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="bg-muted/30 border-t border-border">
+          <div className="mx-auto max-w-[1200px] px-4 py-16 text-center">
+            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}>
+              <motion.h2 variants={fadeUp} className="font-display mb-4 text-2xl font-bold tracking-tight md:text-3xl">
+                Not Ready for a Full Pilot? Start with a 48-Hour Diagnostic.
+              </motion.h2>
+              <motion.p variants={fadeUp} className="mx-auto mb-8 max-w-2xl text-muted-foreground">
+                Get a structured review of your proposal workflow, compliance matrix, technical standards mapping, and engineering effort allocation — delivered in 48 hours with a clear pilot recommendation.
+              </motion.p>
+              <motion.div variants={fadeUp}>
+                <Link href="https://www.rightsense.in/48-hour-diagnostic">
+                  <Button size="lg" className="bg-emerald-500 px-8 text-white hover:bg-emerald-600">
+                    Start with 48-Hour Diagnostic
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </motion.div>
+              <motion.p variants={fadeUp} className="mx-auto mt-6 max-w-xl text-xs text-muted-foreground">
+                The diagnostic identifies proposal, compliance, and documentation readiness gaps. It does not replace formal certification, legal review, statutory audit, regulatory approval, or customer approval.
+              </motion.p>
             </motion.div>
           </div>
         </section>

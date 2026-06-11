@@ -88,8 +88,8 @@ const addons = [
 
 const faqs = [
   {
-    question: "How is WinsProposal different from Loopio, Responsive, or ChatGPT?",
-    answer: "Generic tools treat all proposals the same. WinsProposal understands that a Gate valve proposal needs actuator torque calculations and fugitive emissions data (ISO 15848), while a Centrifugal pump proposal needs NPSH analysis and API 682 seal plans. Our sub-type-specific templates, 12-15 TBE tags per sub-type, and Go/No-Go Decision Matrix are capabilities no horizontal tool offers.",
+    question: "How is WinsProposal different from generic proposal tools?",
+    answer: "Generic proposal tools treat all proposals the same. WinsProposal understands that a Gate valve proposal needs actuator torque calculations and fugitive emissions data (ISO 15848), while a Centrifugal pump proposal needs NPSH analysis and API 682 seal plans. Our sub-type-specific templates, 12-15 TBE tags per sub-type, and Go/No-Go Decision Matrix are capabilities designed specifically for engineering-led bid teams.",
   },
   {
     question: "What is the Go/No-Go Decision Matrix?",
@@ -362,7 +362,7 @@ export function PricingContent() {
       <div className="max-w-[800px] mx-auto px-4 py-16">
         <div className="text-center mb-10">
           <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-2">Frequently Asked Questions</h2>
-          <p className="text-muted-foreground">Everything you need to know about WinsProposal's MOAT features and pricing.</p>
+          <p className="text-muted-foreground">Everything you need to know about WinsProposal&apos;s MOAT features and pricing.</p>
         </div>
 
         <div className="space-y-3">
