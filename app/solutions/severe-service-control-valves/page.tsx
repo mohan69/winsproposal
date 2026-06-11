@@ -38,10 +38,10 @@ const stagger = {
 };
 
 const kpis = [
-  "40-60% faster proposal turnaround",
-  "50-70% reusable engineering content",
-  "90%+ compliance coverage",
-  "25-40 engineering hours saved per complex bid",
+  "Faster proposal turnaround with reusable content",
+  "Reusable engineering content across similar bids",
+  "Higher compliance coverage against client specs",
+  "Reduced engineering hours per complex bid",
   "Faster TBE and approval cycles",
 ];
 
@@ -479,7 +479,7 @@ export default function SevereServiceControlValvesPage() {
                 Not Ready for a Full Pilot? Start with a 48-Hour Diagnostic.
               </motion.h2>
               <motion.p variants={fadeUp} className="mx-auto mb-8 max-w-2xl text-muted-foreground">
-                Get a structured review of your proposal workflow, compliance matrix, technical standards mapping, and engineering effort allocation — delivered in 48 hours with a clear pilot recommendation.
+                Get a structured review of your proposal workflow, compliance matrix, technical standards mapping, engineering effort allocation, approval workflow, and proposal audit trail — delivered in 48 hours with a clear pilot recommendation.
               </motion.p>
               <motion.div variants={fadeUp}>
                 <Link href="https://www.rightsense.in/48-hour-diagnostic">

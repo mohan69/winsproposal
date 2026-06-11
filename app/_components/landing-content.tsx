@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import { DemoShowcase } from "./demo-showcase";
-import { useRef, useEffect, useState } from "react";
 import {
   Zap,
   Upload,
@@ -31,30 +30,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DemoVideoSection } from "@/components/marketing/DemoVideoSection";
 
-function CountUp({ end, suffix = "" }: { end: number; suffix?: string }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true });
 
-  useEffect(() => {
-    if (!isInView) return;
-    let start = 0;
-    const duration = 2000;
-    const increment = end / (duration / 16);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
-    }, 16);
-    return () => clearInterval(timer);
-  }, [isInView, end]);
-
-  return <span ref={ref}>{count}{suffix}</span>;
-}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -116,8 +92,8 @@ export function LandingContent() {
             </motion.p>
             <motion.div variants={fadeUp} className="mt-12 grid grid-cols-2 md:grid-cols-5 gap-3 text-left">
               {[
-                { metric: "50%", label: "faster proposal turnaround" },
-                { metric: "2-3x", label: "proposal throughput" },
+                { metric: "Faster", label: "proposal turnaround" },
+                { metric: "Greater", label: "proposal throughput" },
                 { metric: "Higher", label: "compliance coverage" },
                 { metric: "Lower", label: "engineering effort" },
                 { metric: "Reusable", label: "bid knowledge" },
@@ -138,7 +114,7 @@ export function LandingContent() {
           <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm font-medium text-muted-foreground">
             <span><span className="text-emerald-600 font-bold">80+ Years</span> Combined Industry Expertise</span>
             <span className="hidden md:inline text-border">|</span>
-            <span><span className="text-primary font-bold">API 600 · 610 · 682</span> Compliance Built-In</span>
+            <span><span className="text-primary font-bold">API 600, API 610, API 682, ASME, ANSI, IEC, ISA</span> standards mapping support</span>
             <span className="hidden md:inline text-border">|</span>
             <span><span className="text-primary font-bold">Gate · Globe · Ball · Butterfly · Check</span> Valve Depth</span>
           </motion.div>
@@ -211,7 +187,7 @@ export function LandingContent() {
       <section className="bg-muted/30">
         <div className="max-w-[1200px] mx-auto px-4 py-20">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="text-center mb-14">
-            <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">The MOAT That Makes You Unbeatable</motion.h2>
+            <motion.h2 variants={fadeUp} className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-4">The MOAT Designed for Engineering-Led Bids</motion.h2>
             <motion.p variants={fadeUp} className="text-muted-foreground max-w-2xl mx-auto">Five capabilities that distinguish WinsProposal from generic proposal tools and AI writing assistants.</motion.p>
           </motion.div>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid sm:grid-cols-2 gap-6">
@@ -562,26 +538,23 @@ export function LandingContent() {
       <section id="outcomes" className="bg-gradient-to-br from-[#1a365d] to-[#0f2440] text-white">
         <div className="max-w-[1200px] mx-auto px-4 py-20">
           <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="font-display text-3xl md:text-4xl font-bold tracking-tight text-center mb-4">
-            Results That Speak
+            Target Proposal Outcomes
           </motion.h2>
           <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-blue-200 text-center mb-12 max-w-xl mx-auto">
-            Measured across valve, pump, and EPC proposal workflows.
+            Example outcome areas that proposal teams typically track.
           </motion.p>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid md:grid-cols-4 gap-8">
             {[
-              { icon: Clock, value: 50, suffix: "%", label: "Faster Turnaround", sub: "Shorter proposal cycles with AI-assisted drafting" },
-              { icon: BarChart3, value: 3, suffix: "x", label: "Proposal Throughput", sub: "Handle more qualified bids with the same team" },
-              { icon: TrendingUp, value: 46, suffix: "%", label: "Proposal Reuse", sub: "Approved technical answers reused across pursuits" },
-              { icon: ShieldCheck, value: 15, suffix: "+", label: "TBE Tags / Sub-Type", sub: "Technical criteria for valves, pumps, and EPC workflows" },
+              { icon: Clock, label: "Faster Turnaround", sub: "Shorter proposal cycles with AI-assisted drafting" },
+              { icon: BarChart3, label: "More Proposals", sub: "Handle more qualified bids with the same team" },
+              { icon: TrendingUp, label: "Higher Reuse", sub: "Approved technical answers reused across pursuits" },
+              { icon: ShieldCheck, label: "Deep TBE Coverage", sub: "Technical criteria for valves, pumps, and EPC workflows" },
             ].map((item, i) => (
               <motion.div key={i} variants={fadeUp} className="text-center">
                 <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mx-auto mb-4">
                   <item.icon className="w-7 h-7 text-emerald-400" />
                 </div>
-                <div className="font-display text-4xl md:text-5xl font-bold mb-2">
-                  <CountUp end={item.value ?? 0} suffix={item.suffix ?? ""} />
-                </div>
-                <div className="font-semibold text-lg mb-1">{item.label}</div>
+                <div className="font-display text-2xl font-bold mb-2">{item.label}</div>
                 <div className="text-sm text-blue-200">{item.sub}</div>
               </motion.div>
             ))}
