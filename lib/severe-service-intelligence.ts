@@ -216,7 +216,7 @@ function sanitizeHydrogenTbeCell(value: string | undefined) {
   if (/\bwe\s+conduct\s+hydrostatic\s+and\s+pneumatic\s+testing\b/i.test(value)) {
     return "Testing requirements to be confirmed against final RFP, approved inspection plan, applicable standards, customer witness/hold points, and project QA/QC requirements.";
   }
-  if (/(ASTM\s*A216|WCB|Class\s*\d+|\b\d+(\.\d+)?\s*(inches|inch|in\.|")|bolted\s+bonnet|PTFE|graphite\s+packing|API\s*600|ISO\s*9001|certified|certification|monogram|preferred partner|unparalleled|exceeds expectations|proven track record|\bwe\s+provide\b|\bour\s+globe\s+control\s+valves\b|\bour\s+valves\s+undergo\b|\brigorous\s+testing\b|\bfeature\b)/i.test(value)) {
+  if (/(ASTM\s*A216|WCB|Class\s*(?:\d+|IV|V)\b|\b\d+(\.\d+)?\s*(inches|inch|in\.|")|bolted\s+bonnet|PTFE|graphite\s+packing|API\s*600|ISO\s*9001|certified|certification|monogram|preferred partner|unparalleled|exceeds expectations|proven track record|\bwe\s+provide\b|\bour\s+globe\s+control\s+valves\b|\bour\s+valves\s+undergo\b|\brigorous\s+testing\b|\bfeature\b|\bglobe\s+(?:control\s+)?valve\s+bod(?:y|ies)\b|\bbody\s+type\s*:\s*\w+)/i.test(value)) {
     return "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, inspection plan, and project standards.";
   }
   return value;

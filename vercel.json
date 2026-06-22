@@ -1,5 +1,17 @@
 {
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "buildCommand": "npm run vercel-build"
+  "buildCommand": "npm run vercel-build",
+  "functions": {
+    "app/api/pdf-health/route.ts": {
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**",
+      "maxDuration": 60,
+      "memory": 3008
+    },
+    "app/api/proposals/[id]/export-pdf/route.ts": {
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**",
+      "maxDuration": 60,
+      "memory": 3008
+    }
+  }
 }

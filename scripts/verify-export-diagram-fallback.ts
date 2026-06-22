@@ -138,10 +138,10 @@ async function main() {
   const sanitizedTbe = getHydrogenTbeData(imiExtractedData, {
     lineItems: ["bad"],
     tags: ["Material"],
-    cells: { "0-Material": "ASTM A216 WCB, Class 150, Class 300, 2 inches, bolted bonnet, API 600, PTFE packing, ISO 9001:2015 certified. We provide flanged end connections. Our globe control valves feature bolted bonnet construction. Our valves undergo rigorous testing." },
+    cells: { "0-Material": "ASTM A216 WCB, Class 150, Class 300, Class V, 2 inches, bolted bonnet, API 600, PTFE packing, ISO 9001:2015 certified. Body Type: globe. We provide flanged end connections. Our globe control valves feature bolted bonnet construction. Our valves undergo rigorous testing." },
   });
   const tbeText = JSON.stringify(sanitizedTbe);
-  for (const forbidden of ["ASTM A216", "WCB", "Class 300", "Class 150", "2 inches", "bolted bonnet", "API 600", "PTFE", "ISO 9001", "We provide", "Our globe control valves", "Our valves undergo", "rigorous testing"]) {
+  for (const forbidden of ["ASTM A216", "WCB", "Class 300", "Class 150", "Class V", "2 inches", "bolted bonnet", "API 600", "PTFE", "ISO 9001", "Body Type: globe", "We provide", "Our globe control valves", "Our valves undergo", "rigorous testing"]) {
     assert(!tbeText.includes(forbidden), `TBE export should not assert unsupported ${forbidden}`);
   }
   assert(tbeText.includes("Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, inspection plan, and project standards."), "TBE export should fall back to the required engineering validation language");

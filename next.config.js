@@ -8,6 +8,11 @@ const nextConfig = {
   },
   experimental: {
     webpackBuildWorker: false,
+    serverComponentsExternalPackages: ['@sparticuz/chromium'],
+    outputFileTracingIncludes: {
+      '/api/pdf-health': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+      '/api/proposals/[id]/export-pdf': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+    },
   },
   images: { unoptimized: true },
   webpack: (config, { isServer }) => {

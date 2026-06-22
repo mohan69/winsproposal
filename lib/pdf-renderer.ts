@@ -24,6 +24,11 @@ export type PdfRenderDiagnostics = {
   abacusStatus?: string;
   chromiumAttempted: boolean;
   chromiumExecutablePathResolved: boolean;
+  chromiumExecutablePath?: string;
+  chromiumExecutablePathSource?: string;
+  chromiumExecutablePathError?: string;
+  chromiumBinPathExists?: boolean;
+  chromiumLaunchError?: string;
   pdfLibAttempted: boolean;
   finalSuccess: boolean;
   finalRenderer?: string;
@@ -165,6 +170,7 @@ async function renderWithAbacus(options: PdfRenderOptions): Promise<PdfRenderRes
 
 async function resolveChromiumExecutable(chromium: any) {
   const fs = await import("node:fs");
+  const path = await import("node:path");
   const isExecutableFile = (candidate: string) => {
     try {
       return Boolean(candidate) && fs.existsSync(candidate) && fs.statSync(candidate).isFile();
@@ -173,7 +179,7 @@ async function resolveChromiumExecutable(chromium: any) {
     }
   };
   const explicit = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_EXECUTABLE_PATH;
-  if (explicit && isExecutableFile(explicit)) return explicit;
+  if (explicit && isExecutableFile(explicit)) return { executablePath: explicit, source: "env" };
 
   const candidates = [
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -188,18 +194,36 @@ async function resolveChromiumExecutable(chromium: any) {
   ];
   if (process.platform === "win32") {
     for (const candidate of candidates) {
-      if (isExecutableFile(candidate)) return candidate;
+      if (isExecutableFile(candidate)) return { executablePath: candidate, source: "local-system" };
     }
   }
 
-  const serverlessPath = await chromium.executablePath().catch(() => "");
-  if (serverlessPath && isExecutableFile(serverlessPath)) return serverlessPath;
-
-  for (const candidate of candidates) {
-    if (isExecutableFile(candidate)) return candidate;
+  let packageBinPath = "";
+  try {
+    packageBinPath = path.join(process.cwd(), "node_modules", "@sparticuz", "chromium", "bin");
+    if (fs.existsSync(packageBinPath)) {
+      const serverlessPathFromBin = await chromium.executablePath(packageBinPath).catch((error: any) => {
+        throw new Error(`package-bin executablePath failed: ${error?.message ?? error}`);
+      });
+      if (serverlessPathFromBin && isExecutableFile(serverlessPathFromBin)) {
+        return { executablePath: serverlessPathFromBin, source: "package-bin", packageBinPath };
+      }
+    }
+  } catch (error: any) {
+    const serverlessPath = await chromium.executablePath().catch((fallbackError: any) => {
+      throw new Error(`${error?.message ?? error}; default executablePath failed: ${fallbackError?.message ?? fallbackError}`);
+    });
+    if (serverlessPath && isExecutableFile(serverlessPath)) return { executablePath: serverlessPath, source: "default", packageBinPath };
   }
 
-  return serverlessPath || undefined;
+  const serverlessPath = await chromium.executablePath().catch(() => "");
+  if (serverlessPath && isExecutableFile(serverlessPath)) return { executablePath: serverlessPath, source: "default", packageBinPath };
+
+  for (const candidate of candidates) {
+    if (isExecutableFile(candidate)) return { executablePath: candidate, source: "local-system", packageBinPath };
+  }
+
+  return { executablePath: serverlessPath || "", source: "unresolved", packageBinPath };
 }
 
 async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRenderResult> {
@@ -213,7 +237,22 @@ async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRe
     const chromiumModule = await import("@sparticuz/chromium");
     const puppeteer = puppeteerModule.default ?? puppeteerModule;
     const chromium = (chromiumModule.default ?? chromiumModule) as any;
-    const executablePath = await resolveChromiumExecutable(chromium);
+    let executablePath = "";
+    let executableSource = "unresolved";
+    try {
+      const resolved = await resolveChromiumExecutable(chromium);
+      executablePath = resolved.executablePath;
+      executableSource = resolved.source;
+      if (options.diagnostics) {
+        options.diagnostics.chromiumBinPathExists = Boolean(resolved.packageBinPath);
+        options.diagnostics.chromiumExecutablePathSource = executableSource;
+        options.diagnostics.chromiumExecutablePath = executablePath || undefined;
+      }
+    } catch (error: any) {
+      if (options.diagnostics) {
+        options.diagnostics.chromiumExecutablePathError = String(error?.message ?? error).slice(0, 500);
+      }
+    }
     options.diagnostics && (options.diagnostics.chromiumExecutablePathResolved = Boolean(executablePath));
     if (!executablePath) throw new PdfRenderError(stage, "No Chromium executable found.");
 
@@ -223,12 +262,16 @@ async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRe
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
     ];
+    const headlessMode = process.platform === "win32" || executableSource === "local-system" ? true : "shell";
+    const args = process.platform === "win32" || executableSource === "local-system"
+      ? launchArgs
+      : await puppeteer.defaultArgs({ args: launchArgs, headless: headlessMode });
 
-    console.info(`PDF renderer selected: local Chromium; stage=${stage}; executable=${executablePath ? "resolved" : "missing"}; htmlBytes=${Buffer.byteLength(options.html, "utf8")}`);
+    console.info(`PDF renderer selected: local Chromium; stage=${stage}; executable=${executablePath ? executableSource : "missing"}; htmlBytes=${Buffer.byteLength(options.html, "utf8")}`);
     browser = await puppeteer.launch({
-      args: launchArgs,
+      args,
       executablePath,
-      headless: chromium.headless ?? true,
+      headless: headlessMode,
       defaultViewport: chromium.defaultViewport ?? { width: 1240, height: 1754 },
     });
 
@@ -251,7 +294,9 @@ async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRe
     return { pdfBuffer, requestId: "local-chromium", stage, renderer: "local-chromium" };
   } catch (error: any) {
     if (error instanceof PdfRenderError) throw error;
-    console.error(`Local Chromium PDF render failed; stage=${stage}; reason=${String(error?.message ?? error).slice(0, 500)}`);
+    const launchError = String(error?.message ?? error).slice(0, 500);
+    if (options.diagnostics) options.diagnostics.chromiumLaunchError = launchError;
+    console.error(`Local Chromium PDF render failed; stage=${stage}; reason=${launchError}`);
     throw new PdfRenderError(stage, "Local Chromium render failed.");
   } finally {
     if (browser) await browser.close().catch(() => undefined);

@@ -156,6 +156,17 @@ async function verifyForcedFallbacks() {
 
   const pdfRenderer = fs.readFileSync(path.join(process.cwd(), "lib", "pdf-renderer.ts"), "utf8");
   assert(!pdfRenderer.includes("WinsProposal PDF Export Fallback"), "pdf-lib fallback should not title normal exports as PDF Export Fallback");
+  assert(pdfRenderer.includes("chromiumExecutablePathError"), "PDF renderer diagnostics should include Chromium executable resolution errors");
+  assert(pdfRenderer.includes("packageBinPath"), "PDF renderer should attempt packaged Chromium bin resolution");
+
+  const nextConfig = fs.readFileSync(path.join(process.cwd(), "next.config.js"), "utf8");
+  assert(nextConfig.includes("serverComponentsExternalPackages"), "Next config should externalize server-only Chromium package");
+  assert(nextConfig.includes("@sparticuz/chromium"), "Next config should reference @sparticuz/chromium");
+  assert(nextConfig.includes("outputFileTracingIncludes"), "Next config should include Chromium binary files for traced PDF routes");
+
+  const vercelConfig = fs.readFileSync(path.join(process.cwd(), "vercel.json"), "utf8");
+  assert(vercelConfig.includes("node_modules/@sparticuz/chromium/bin/**"), "Vercel config should include Chromium binaries in PDF functions");
+  assert(vercelConfig.includes('"memory": 3008'), "Vercel PDF functions should request higher memory for Chromium");
 }
 
 async function main() {
