@@ -1,4 +1,6 @@
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";

@@ -6,13 +6,40 @@ type PdfRenderOptions = {
   headerTemplate?: string;
   timeoutAttempts?: number;
   pollIntervalMs?: number;
+  diagnostics?: PdfRenderDiagnostics;
+  forceAbacusFailure?: boolean;
+  forceChromiumFailure?: boolean;
+  disablePdfLibFallback?: boolean;
 };
 
 export type PdfRenderResult = {
   pdfBuffer: Buffer;
   requestId: string;
   stage: string;
+  renderer: "abacus-html-to-pdf" | "local-chromium" | "pdf-lib";
 };
+
+export type PdfRenderDiagnostics = {
+  rendererAttempted: string[];
+  abacusStatus?: string;
+  chromiumAttempted: boolean;
+  chromiumExecutablePathResolved: boolean;
+  pdfLibAttempted: boolean;
+  finalSuccess: boolean;
+  finalRenderer?: string;
+  finalStage?: string;
+  safeErrorMessage?: string;
+};
+
+export function createPdfRenderDiagnostics(): PdfRenderDiagnostics {
+  return {
+    rendererAttempted: [],
+    chromiumAttempted: false,
+    chromiumExecutablePathResolved: false,
+    pdfLibAttempted: false,
+    finalSuccess: false,
+  };
+}
 
 export class PdfRenderError extends Error {
   stage: string;
@@ -40,7 +67,25 @@ function assertPdfBuffer(stage: string, buffer: Buffer) {
   }
 }
 
+function markSuccess(options: PdfRenderOptions, renderer: string, stage: string) {
+  if (!options.diagnostics) return;
+  options.diagnostics.finalSuccess = true;
+  options.diagnostics.finalRenderer = renderer;
+  options.diagnostics.finalStage = stage;
+  options.diagnostics.safeErrorMessage = undefined;
+}
+
+function markFailure(options: PdfRenderOptions, message: string) {
+  if (!options.diagnostics) return;
+  options.diagnostics.safeErrorMessage = message;
+}
+
 async function renderWithAbacus(options: PdfRenderOptions): Promise<PdfRenderResult> {
+  options.diagnostics?.rendererAttempted.push("abacus-html-to-pdf");
+  if (options.forceAbacusFailure) {
+    options.diagnostics && (options.diagnostics.abacusStatus = "forced-failure");
+    throw new PdfRenderError(options.stage, "Forced Abacus renderer failure.");
+  }
   const token = getPdfDeploymentToken();
   if (!token) throw new PdfRenderError(options.stage, "Abacus PDF renderer API key is not configured.");
   const stage = options.stage;
@@ -69,9 +114,11 @@ async function renderWithAbacus(options: PdfRenderOptions): Promise<PdfRenderRes
 
   if (!createResponse.ok) {
     const errorText = await createResponse.text().catch(() => "");
+    options.diagnostics && (options.diagnostics.abacusStatus = String(createResponse.status));
     console.error(`PDF create failed; stage=${stage}; status=${createResponse.status}; reason=${errorText.slice(0, 500)}`);
     throw new PdfRenderError(stage, `Create request failed with status ${createResponse.status}.`, createResponse.status);
   }
+  options.diagnostics && (options.diagnostics.abacusStatus = "created");
 
   const createResult = await createResponse.json().catch(() => null);
   const requestId = createResult?.request_id;
@@ -102,8 +149,9 @@ async function renderWithAbacus(options: PdfRenderOptions): Promise<PdfRenderRes
       if (!base64) throw new PdfRenderError(stage, "Renderer succeeded but returned no PDF data.");
       const pdfBuffer = Buffer.from(base64, "base64");
       assertPdfBuffer(stage, pdfBuffer);
+      markSuccess(options, "abacus-html-to-pdf", stage);
       console.info(`PDF renderer succeeded; stage=${stage}; requestId=${requestId}; bytes=${pdfBuffer.length}`);
-      return { pdfBuffer, requestId, stage };
+      return { pdfBuffer, requestId, stage, renderer: "abacus-html-to-pdf" };
     }
 
     if (status === "FAILED") {
@@ -117,8 +165,15 @@ async function renderWithAbacus(options: PdfRenderOptions): Promise<PdfRenderRes
 
 async function resolveChromiumExecutable(chromium: any) {
   const fs = await import("node:fs");
+  const isExecutableFile = (candidate: string) => {
+    try {
+      return Boolean(candidate) && fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+    } catch {
+      return false;
+    }
+  };
   const explicit = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_EXECUTABLE_PATH;
-  if (explicit && fs.existsSync(explicit)) return explicit;
+  if (explicit && isExecutableFile(explicit)) return explicit;
 
   const candidates = [
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -131,11 +186,19 @@ async function resolveChromiumExecutable(chromium: any) {
     "/usr/bin/chromium-browser",
     "/usr/bin/chromium",
   ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
+  if (process.platform === "win32") {
+    for (const candidate of candidates) {
+      if (isExecutableFile(candidate)) return candidate;
+    }
   }
 
   const serverlessPath = await chromium.executablePath().catch(() => "");
+  if (serverlessPath && isExecutableFile(serverlessPath)) return serverlessPath;
+
+  for (const candidate of candidates) {
+    if (isExecutableFile(candidate)) return candidate;
+  }
+
   return serverlessPath || undefined;
 }
 
@@ -143,11 +206,15 @@ async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRe
   const stage = `${options.stage}-local-chromium`;
   let browser: any = null;
   try {
+    options.diagnostics?.rendererAttempted.push("local-chromium");
+    options.diagnostics && (options.diagnostics.chromiumAttempted = true);
+    if (options.forceChromiumFailure) throw new PdfRenderError(stage, "Forced Chromium renderer failure.");
     const puppeteerModule = await import("puppeteer-core");
     const chromiumModule = await import("@sparticuz/chromium");
     const puppeteer = puppeteerModule.default ?? puppeteerModule;
     const chromium = (chromiumModule.default ?? chromiumModule) as any;
     const executablePath = await resolveChromiumExecutable(chromium);
+    options.diagnostics && (options.diagnostics.chromiumExecutablePathResolved = Boolean(executablePath));
     if (!executablePath) throw new PdfRenderError(stage, "No Chromium executable found.");
 
     const launchArgs = [
@@ -162,7 +229,7 @@ async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRe
       args: launchArgs,
       executablePath,
       headless: chromium.headless ?? true,
-      defaultViewport: { width: 1240, height: 1754 },
+      defaultViewport: chromium.defaultViewport ?? { width: 1240, height: 1754 },
     });
 
     const page = await browser.newPage();
@@ -179,8 +246,9 @@ async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRe
     });
     const pdfBuffer = Buffer.from(pdfBytes);
     assertPdfBuffer(stage, pdfBuffer);
+    markSuccess(options, "local-chromium", stage);
     console.info(`PDF renderer succeeded: local Chromium; stage=${stage}; bytes=${pdfBuffer.length}`);
-    return { pdfBuffer, requestId: "local-chromium", stage };
+    return { pdfBuffer, requestId: "local-chromium", stage, renderer: "local-chromium" };
   } catch (error: any) {
     if (error instanceof PdfRenderError) throw error;
     console.error(`Local Chromium PDF render failed; stage=${stage}; reason=${String(error?.message ?? error).slice(0, 500)}`);
@@ -190,12 +258,150 @@ async function renderWithLocalChromium(options: PdfRenderOptions): Promise<PdfRe
   }
 }
 
+function htmlToPlainText(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\/(h1|h2|h3|p|tr|section|div)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function sanitizePdfText(value: string) {
+  return value
+    .replace(/[→↔↦⇒]/g, "->")
+    .replace(/[–—]/g, "-")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[₹]/g, "INR ")
+    .replace(/[×]/g, "x")
+    .replace(/[°]/g, " deg ")
+    .replace(/[•]/g, "-")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
+}
+
+function wrapPdfText(text: string, maxChars: number) {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    if ((current + " " + word).trim().length > maxChars) {
+      if (current) lines.push(current);
+      current = word;
+    } else {
+      current = (current + " " + word).trim();
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+async function renderWithPdfLib(options: PdfRenderOptions): Promise<PdfRenderResult> {
+  const stage = `${options.stage}-pdf-lib`;
+  options.diagnostics?.rendererAttempted.push("pdf-lib");
+  options.diagnostics && (options.diagnostics.pdfLibAttempted = true);
+
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const margin = 48;
+  const width = 595.28;
+  const height = 841.89;
+  const maxLines = 42;
+  const text = sanitizePdfText(htmlToPlainText(options.html)).slice(0, 16000) || "WinsProposal PDF export fallback.";
+  const paragraphs = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  let page = doc.addPage([width, height]);
+  let y = height - margin;
+  let lineCount = 0;
+
+  const addPage = () => {
+    page.drawText("WinsProposal | Proposal-stage engineering estimate", {
+      x: margin,
+      y: 24,
+      size: 8,
+      font,
+      color: rgb(0.38, 0.45, 0.55),
+    });
+    page = doc.addPage([width, height]);
+    y = height - margin;
+    lineCount = 0;
+  };
+
+  page.drawText("WinsProposal PDF Export Fallback", {
+    x: margin,
+    y,
+    size: 16,
+    font: bold,
+    color: rgb(0.08, 0.2, 0.25),
+  });
+  y -= 24;
+  page.drawText("Detailed drawings and technical appendix are available in DOCX export where applicable.", {
+    x: margin,
+    y,
+    size: 9,
+    font,
+    color: rgb(0.57, 0.25, 0.05),
+  });
+  y -= 22;
+
+  for (const paragraph of paragraphs) {
+    const lines = wrapPdfText(paragraph, 92);
+    for (const line of lines) {
+      if (lineCount >= maxLines || y < 56) addPage();
+      const isHeading = /^(Hydrogen|Executive|Scope|Process|Compliance|Commercial|Proposal|Ultra-minimal|Simplified)/i.test(line);
+      page.drawText(sanitizePdfText(line).slice(0, 140), {
+        x: margin,
+        y,
+        size: isHeading ? 10 : 8.5,
+        font: isHeading ? bold : font,
+        color: rgb(0.12, 0.16, 0.22),
+      });
+      y -= isHeading ? 15 : 11;
+      lineCount++;
+    }
+    y -= 4;
+  }
+  page.drawText("WinsProposal | Proposal-stage engineering estimate", {
+    x: margin,
+    y: 24,
+    size: 8,
+    font,
+    color: rgb(0.38, 0.45, 0.55),
+  });
+
+  const pdfBytes = await doc.save();
+  const pdfBuffer = Buffer.from(pdfBytes);
+  assertPdfBuffer(stage, pdfBuffer);
+  markSuccess(options, "pdf-lib", stage);
+  console.info(`PDF renderer succeeded: pdf-lib; stage=${stage}; bytes=${pdfBuffer.length}`);
+  return { pdfBuffer, requestId: "pdf-lib", stage, renderer: "pdf-lib" };
+}
+
 export async function renderHtmlToPdf(options: PdfRenderOptions): Promise<PdfRenderResult> {
   try {
     return await renderWithAbacus(options);
   } catch (abacusError: any) {
     const safeReason = abacusError instanceof PdfRenderError ? abacusError.safeReason : abacusError?.message ?? "Unknown Abacus renderer error.";
     console.warn(`Abacus PDF renderer unavailable; stage=${options.stage}; reason=${safeReason}; trying local Chromium fallback.`);
-    return renderWithLocalChromium(options);
+    markFailure(options, safeReason);
+    try {
+      return await renderWithLocalChromium(options);
+    } catch (chromiumError: any) {
+      const chromiumReason = chromiumError instanceof PdfRenderError ? chromiumError.safeReason : chromiumError?.message ?? "Unknown Chromium renderer error.";
+      console.warn(`Chromium PDF renderer unavailable; stage=${options.stage}; reason=${chromiumReason}; trying pdf-lib fallback.`);
+      markFailure(options, chromiumReason);
+      if (options.disablePdfLibFallback) throw chromiumError;
+      return renderWithPdfLib(options);
+    }
   }
 }
