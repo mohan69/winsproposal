@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     };
     const companySizeInstructions: Record<string, string> = {
       startup: "Write concise, direct proposals. Use simple language, focus on value and cost-effectiveness. Keep sections short (1-2 paragraphs). Emphasize agility, innovation, and quick delivery. Avoid excessive formality or corporate jargon.",
-      sme: "Write professional but approachable proposals. Use moderate detail (2-3 paragraphs per section). Balance technical depth with readability. Highlight reliability, proven track record, and competitive pricing.",
+      sme: "Write professional but approachable proposals. Use moderate detail (2-3 paragraphs per section). Balance technical depth with readability. Highlight reliability only when supported by RFP or approved knowledge sources, and avoid broad unsupported track-record claims.",
       mid_market: "Write detailed, structured proposals with professional tone. Include comprehensive technical details (3-4 paragraphs per section). Reference industry standards and certifications. Include project management methodology and risk mitigation.",
       enterprise: "Write highly formal, comprehensive proposals with executive-level language. Include extensive technical depth (4-5 paragraphs per section). Emphasize enterprise-grade quality, global capabilities, regulatory compliance, and scalability. Include detailed governance frameworks.",
       conglomerate: "Write extremely formal, boardroom-ready proposals. Use maximum detail and depth (5+ paragraphs per section). Include comprehensive risk analysis, multi-site coordination plans, global supply chain considerations, and C-suite executive summaries. Reference international standards and multi-jurisdictional compliance.",
@@ -196,6 +196,9 @@ Engineering safety requirement:
 - Include this exact disclaimer in Proposal-Stage Engineering Intelligence and Preliminary Engineering Calculation Summary sections: "${SEVERE_SERVICE_DISCLAIMER}"
 - Use careful terms such as "indicative", "proposal-stage", "requires engineer validation", and "not certified final sizing".
 - Do not claim certified design, final sizing, or final engineering calculation.
+- Preserve RFP tag numbers exactly. Do not replace extracted tags with generic demo tags.
+- Do not invent pressure class, valve size, material, packing, leakage class, testing, certification, ISO status, or manufacturer qualification claims. If a value is missing, write "Requires engineering validation".
+- Avoid unsupported sales superlatives such as "unparalleled expertise", "preferred partner", "proven track record", and "exceeds expectations". Use evidence-bound, professional language.
 
 ${sectionInstructions}
 

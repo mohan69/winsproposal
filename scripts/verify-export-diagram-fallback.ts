@@ -6,6 +6,7 @@ import {
   renderDrawingPackageExportHtml,
   renderDrawingPackagePng,
 } from "../lib/export-diagram-renderer";
+import { ensureSevereServiceSections, getHydrogenTbeData, inferRfpIntelligence } from "../lib/severe-service-intelligence";
 
 function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(message);
@@ -81,6 +82,50 @@ async function main() {
   const pdfFallback = renderArtifactForPdf(artifact!, "#1a365d", {});
   assert(pdfFallback.includes(DIAGRAM_TEXT_FALLBACK_WARNING), "PDF artifact should fall back when drawing PNG is missing");
   assert(!/Unable to render DOCX drawing PNG/i.test(pdfFallback), "Export fallback should not leak old hard failure text");
+
+  const imiExtractedData = {
+    title: "IMI Severe-Service Hydrogen Control Valve RFP",
+    industry: "Valves",
+    lineItems: [
+      { tag: "PCV-101", description: "Hydrogen pressure control valve 85 barg to 55 barg at 45°C", quantity: 1 },
+      { tag: "PCV-102", description: "Hydrogen pressure control valve 70 barg to 30 barg at 45°C", quantity: 1 },
+      { tag: "PCV-103", description: "Hydrogen pressure control valve 60 barg to 40 barg at 45°C", quantity: 1 },
+      { tag: "PCV-104", description: "Hydrogen pressure control valve 85 barg to 1.5 barg at 45°C", quantity: 1 },
+    ],
+    requirements: [
+      { id: "R1", description: "Severe-service hydrogen control valve package with proposal-stage sizing validation" },
+      { id: "R2", description: "P&ID-lite control loop and drawing package required" },
+    ],
+  };
+  const intelligence = inferRfpIntelligence(imiExtractedData);
+  const sections = ensureSevereServiceSections([], intelligence, imiExtractedData);
+  const sectionText = sections.map((section) => `${section.title}\n${section.content}`).join("\n");
+  for (const required of ["PCV-101", "PCV-102", "PCV-103", "PCV-104", "85 barg", "55 barg", "70 barg", "30 barg", "60 barg", "40 barg", "1.5 barg", "45°C"]) {
+    assert(sectionText.includes(required), `Generated severe-service content should preserve ${required}`);
+  }
+  for (const stale of ["HV-H2-3101", "FV-H2-3150", "PV-H2-3190", "48 barg", "18 barg", "60°C", "unparalleled expertise", "preferred partner", "exceeds expectations"]) {
+    assert(!sectionText.includes(stale), `Generated severe-service content should not include stale/overclaiming text: ${stale}`);
+  }
+
+  const imiDrawings = buildDrawingPackages({
+    proposalId: "verify-imi-tags",
+    templateType: "Severe-Service Control Valve | Hydrogen Process Control / Export Header Control",
+    extractedData: imiExtractedData,
+  });
+  const imiDrawingText = JSON.stringify(imiDrawings);
+  for (const tag of ["PCV-101", "PCV-102", "PCV-103", "PCV-104"]) assert(imiDrawingText.includes(tag), `Drawings should preserve ${tag}`);
+  assert(!/HV-H2-3101|FV-H2-3150|PV-H2-3190/.test(imiDrawingText), "Drawings should not use stale H2 demo tags when RFP tags exist");
+
+  const sanitizedTbe = getHydrogenTbeData(imiExtractedData, {
+    lineItems: ["bad"],
+    tags: ["Material"],
+    cells: { "0-Material": "ASTM A216 WCB, Class 300, API 600, PTFE packing, ISO 9001:2015 certified" },
+  });
+  const tbeText = JSON.stringify(sanitizedTbe);
+  for (const forbidden of ["ASTM A216", "WCB", "Class 300", "API 600", "PTFE", "ISO 9001"]) {
+    assert(!tbeText.includes(forbidden), `TBE export should not assert unsupported ${forbidden}`);
+  }
+  assert(tbeText.includes("Requires engineering validation"), "TBE export should fall back to engineering validation language");
 
   console.log("Export diagram PNG and fallback behavior verified.");
 }

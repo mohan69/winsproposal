@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, getMermaidImageUrl, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
-import { getHydrogenSectionContentOverride, getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, normalizeHydrogenTbeData, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getHydrogenSectionContentOverride, getHydrogenTbeData, getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 import {
   buildEngineeringArtifact,
   getProposalVisualSpec,
@@ -868,10 +868,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const severeServiceExport = /severe-service|hydrogen|lng|compressor|steam|refinery/i.test(`${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
     const hydrogenExport = intelligence.applicationId === "hydrogen-process-control"
       || /hydrogen/i.test(`${proposal.title} ${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
-    const exportTbeData = hydrogenExport ? normalizeHydrogenTbeData(tbeData) : tbeData;
+    const exportTbeData = hydrogenExport ? getHydrogenTbeData(extractedData, tbeData) : tbeData;
     const exportSections = proposal.sections.map((section) => ({
       ...section,
-      content: hydrogenExport ? getHydrogenSectionContentOverride(section.sectionTitle) ?? section.content : section.content,
+      content: hydrogenExport ? getHydrogenSectionContentOverride(section.sectionTitle, extractedData) ?? section.content : section.content,
     }));
     const createdDate = proposal.createdAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 

@@ -1,4 +1,5 @@
 import { inferRfpIntelligence, parseProposalTemplateMetadata, SEVERE_SERVICE_DISCLAIMER } from "@/lib/severe-service-intelligence";
+import { processConditionsForLineItem } from "@/lib/severe-service-intelligence";
 import {
   buildDrawingPackages,
   drawingPackageToStructuredText,
@@ -137,10 +138,10 @@ function applicationProcessFallback(applicationId: string, fieldName: string) {
   const values: Record<string, Record<string, string>> = {
     "hydrogen-process-control": {
       fluid: "Hydrogen-rich process gas",
-      inletPressure: "48 barg",
-      outletPressure: "18 barg",
-      temperature: "60°C",
-      leakageClass: "Class V requested for selected tags",
+      inletPressure: "Requires engineering validation",
+      outletPressure: "Requires engineering validation",
+      temperature: "Requires engineering validation",
+      leakageClass: "Requires engineering validation",
       serviceConcerns: "Hydrogen compatibility, high-integrity sealing, traceability, process safety",
     },
     "lng-compressor-recycle": {
@@ -158,14 +159,6 @@ function applicationProcessFallback(applicationId: string, fieldName: string) {
 
 function appProcessField(process: any, applicationId: string, keys: string[], fallbackKey: string) {
   const canonical = applicationProcessFallback(applicationId, fallbackKey);
-  const canonicalKeys = ["fluid", "inletPressure", "outletPressure", "temperature", "leakageClass"];
-  if (
-    (applicationId === "hydrogen-process-control" || applicationId === "lng-compressor-recycle") &&
-    canonicalKeys.includes(fallbackKey) &&
-    canonical !== "TBD"
-  ) {
-    return canonical;
-  }
   return processField(process, keys, canonical);
 }
 
@@ -260,11 +253,11 @@ function buildDatasheet(extractedData: any): ArtifactTable[] {
       qty,
       specs: clean(field(item, ["sizeClass", "size", "pressureClass", "class", "specifications"]), "Per RFP / engineer validation"),
       service: clean(field(item, ["service", "application"]), intelligence.serviceType),
-      fluid: clean(field(item, ["fluid"]) || field(process, ["fluid", "serviceFluid", "service"]), applicationProcessFallback(intelligence.applicationId, "fluid")),
-      inlet: isDoc ? "N/A" : appProcessField(process, intelligence.applicationId, ["inletPressure", "upstreamPressure", "p1"], "inletPressure"),
-      outlet: isDoc ? "N/A" : appProcessField(process, intelligence.applicationId, ["outletPressure", "downstreamPressure", "p2"], "outletPressure"),
-      temperature: isDoc ? "N/A" : appProcessField(process, intelligence.applicationId, ["temperature", "operatingTemperature", "temp"], "temperature"),
-      leakage: isDoc ? "N/A" : appProcessField(process, intelligence.applicationId, ["leakageClass"], "leakageClass"),
+      fluid: isDoc ? "N/A" : processConditionsForLineItem(item, extractedData).fluid,
+      inlet: isDoc ? "N/A" : processConditionsForLineItem(item, extractedData).inletPressure,
+      outlet: isDoc ? "N/A" : processConditionsForLineItem(item, extractedData).outletPressure,
+      temperature: isDoc ? "N/A" : processConditionsForLineItem(item, extractedData).temperature,
+      leakage: isDoc ? "N/A" : processConditionsForLineItem(item, extractedData).leakageClass,
       configuration: isDoc ? "N/A" : clean(field(item, ["valveConfiguration"]), intelligence.applicationId === "hydrogen-process-control" ? "Hydrogen-compatible control valve; sealing reviewed" : "Severe-service control valve"),
       accessories: isDoc ? "N/A" : clean(field(item, ["accessories"]), "Positioner, solenoid, airset/filter regulator, limit switches as specified"),
       documentation: isDoc ? "Traceability dossier / MDR" : "Datasheet, GA drawing, material certificates, test records",

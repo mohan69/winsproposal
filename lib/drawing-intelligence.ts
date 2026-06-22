@@ -181,12 +181,15 @@ function packageOf(params: {
 
 function hydrogenPackages(proposalId: string, applicationType: string, extractedData: any): DrawingPackage[] {
   const tags = tagsFromRfp(extractedData, ["HV-H2-3101A/B/C/D", "FV-H2-3150A/B", "PV-H2-3190"]);
+  const primaryTags = tags.slice(0, 4).join(", ");
+  const secondaryTags = tags.slice(4, 6).join(", ") || tags.slice(0, 2).join(", ");
+  const exportTag = tags[6] ?? tags[tags.length - 1] ?? "Requires engineering validation";
   const topologySymbols = [
     sym("h2-feed", "process_source", "Hydrogen feed", 40, 165),
     sym("h2-filtration", "filter_regulator_airset", "Isolation / filtration", 185, 165),
-    sym("h2-hv", "severe_service_control_valve", "Pressure control valves", 340, 155, { tag: "HV-H2-3101A/B/C/D", width: 128 }),
-    sym("h2-fv", "control_valve", "Flow control valves", 505, 155, { tag: "FV-H2-3150A/B" }),
-    sym("h2-pv", "severe_service_control_valve", "Export header control", 650, 155, { tag: "PV-H2-3190" }),
+    sym("h2-hv", "severe_service_control_valve", "Pressure control valves", 340, 155, { tag: primaryTags, width: 128 }),
+    sym("h2-fv", "control_valve", "Flow / service control", 505, 155, { tag: secondaryTags }),
+    sym("h2-pv", "severe_service_control_valve", "Export header control", 650, 155, { tag: exportTag }),
     sym("h2-header", "process_destination", "Export header", 805, 165),
     sym("h2-monitor", "controller", "Leakage / pressure monitoring", 650, 55, { width: 150 }),
   ];
@@ -224,7 +227,7 @@ function hydrogenPackages(proposalId: string, applicationType: string, extracted
         sym("h2-pos", "positioner", "Positioner", 245, 60),
         sym("h2-sol", "solenoid", "Solenoid", 405, 60),
         sym("h2-act", "actuator", "Actuator", 565, 60),
-        sym("h2-valve-loop", "severe_service_control_valve", "Hydrogen control valve", 565, 170, { tag: "HV/FV/PV-H2" }),
+        sym("h2-valve-loop", "severe_service_control_valve", "Hydrogen control valve", 565, 170, { tag: tags.join(", ") }),
         sym("h2-ls", "limit_switch", "Limit switch / feedback", 755, 60),
       ],
       connectors: [
@@ -235,7 +238,7 @@ function hydrogenPackages(proposalId: string, applicationType: string, extracted
         { id: "h2-f1", from: "h2-valve-loop", to: "h2-ls", lineType: "instrument", label: "feedback" },
       ],
       annotations: [{ id: "h2-cert", x: 565, y: 150, label: "Hazardous area accessory certificate basis requires project validation." }],
-      tagsUsed: tags.filter((tag) => /H2/i.test(tag)),
+      tagsUsed: tags,
       notes: ["Fail action, stroking, hazardous area certificates, and accessory make/model require final confirmation."],
     }),
     valvePackage(proposalId, applicationType, "hydrogen-process-control", "DIE-H2-PKG-003", "Hydrogen Valve Package Schematic", "Hydrogen valve assembly with sealing, packing, actuator, and accessory review.", tags),
@@ -256,7 +259,7 @@ function hydrogenPackages(proposalId: string, applicationType: string, extracted
         sym("h2-mdr", "document_mdr_package", "MDR release", 855, 130),
       ],
       connectors: undefined,
-      tagsUsed: ["DOC-H2", ...tags.filter((tag) => /H2/i.test(tag)).slice(0, 3)],
+      tagsUsed: ["MDR / documentation", ...tags.slice(0, 3)],
       notes: ["MTC, PMI, leakage test evidence, and MDR release are workflow placeholders until project ITP/QAP is validated."],
     }),
     packageOf({
@@ -274,7 +277,7 @@ function hydrogenPackages(proposalId: string, applicationType: string, extracted
         sym("h2-release", "inspection_hold_point", "Inspection release", 585, 130, { width: 135 }),
         sym("h2-databook", "document_mdr_package", "Final data book", 755, 130),
       ],
-      tagsUsed: ["DOC-H2", ...tags.filter((tag) => /H2/i.test(tag)).slice(0, 3)],
+      tagsUsed: ["MDR / documentation", ...tags.slice(0, 3)],
       notes: ["Inspection hold points, witness points, and final dossier content require project ITP/QAP confirmation."],
     }),
   ];

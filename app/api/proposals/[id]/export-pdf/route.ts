@@ -9,6 +9,7 @@ import { generateProposalHtml } from "@/lib/pdf-template";
 import { getBestVisualizationType } from "@/lib/visualization-service";
 import { buildEngineeringArtifact } from "@/lib/engineering-artifacts";
 import { getDrawingExportKey, renderDrawingPackagePng } from "@/lib/export-diagram-renderer";
+import { getHydrogenSectionContentOverride, getHydrogenTbeData, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -25,6 +26,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     });
 
     if (!proposal) return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
+    const proposalTitle = proposal.title;
     const { searchParams } = new URL(request.url);
     const includeDiagrams = searchParams.get("includeDiagrams") !== "false";
 
@@ -67,9 +69,19 @@ export async function GET(request: Request, { params }: { params: { id: string }
       complianceTotal: checklist?.length ?? 0,
     });
 
+    const templateMetadata = parseProposalTemplateMetadata(proposal.templateType);
+    const intelligence = inferRfpIntelligence(extractedData ?? {});
+    const hydrogenExport = intelligence.applicationId === "hydrogen-process-control"
+      || /hydrogen/i.test(`${proposal.title} ${proposal.templateType} ${proposal.industry} ${templateMetadata.application}`);
+    const exportTbeData = hydrogenExport ? getHydrogenTbeData(extractedData, tbeData) : tbeData;
+    const exportSections = proposal.sections.map((section) => ({
+      ...section,
+      content: hydrogenExport ? getHydrogenSectionContentOverride(section.sectionTitle, extractedData) ?? section.content : section.content,
+    }));
+
     const drawingImageData: Record<string, string> = {};
     if (includeDiagrams) {
-      for (const section of proposal.sections) {
+      for (const section of exportSections) {
         const artifact = buildEngineeringArtifact({
           sectionTitle: section.sectionTitle,
           sectionId: section.id,
@@ -82,21 +94,20 @@ export async function GET(request: Request, { params }: { params: { id: string }
             const png = await renderDrawingPackagePng(drawing);
             if (png?.dataUri) drawingImageData[getDrawingExportKey(drawing)] = png.dataUri;
           } catch (error: any) {
-            console.warn(`PDF diagram PNG fallback for ${drawing.title}: ${error?.message ?? error}`);
+            console.warn(`PDF diagram PNG fallback for section "${section.sectionTitle}", drawing "${drawing.title}": ${error?.message ?? error}`);
           }
         }
       }
     }
 
-    // Generate HTML
-    const html = generateProposalHtml({
+    const htmlData = {
       proposalId: proposal.id,
       title: proposal.title,
       industry: proposal.industry,
       templateType: proposal.templateType,
       status: proposal.status,
       createdAt: proposal.createdAt.toISOString(),
-      sections: proposal.sections.map((s) => ({
+      sections: exportSections.map((s) => ({
         id: s.id,
         sectionTitle: s.sectionTitle,
         content: s.content,
@@ -115,41 +126,63 @@ export async function GET(request: Request, { params }: { params: { id: string }
       brandColor: (proposal.user as any)?.organization?.brandColor ?? undefined,
       includeDiagrams,
       complianceItems: checklist ?? undefined,
-      tbeData: tbeData ?? undefined,
+      tbeData: exportTbeData ?? undefined,
       extractedData,
       drawingImageData,
-    });
+    };
 
-    // Step 1: Create PDF request
-    const createResponse = await fetch("https://apps.abacus.ai/api/createConvertHtmlToPdfRequest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deployment_token: process.env.ABACUSAI_API_KEY,
-        html_content: html,
-        pdf_options: {
-          format: "A4",
-          print_background: true,
-          margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
-          display_header_footer: true,
-          header_template: '<div></div>',
-          footer_template: `<div style="width:100%;font-size:8px;color:#6b7280;display:flex;justify-content:space-between;gap:12px;padding:0 21mm;font-family:Arial,Helvetica,sans-serif;"><span>${proposal.title.length > 45 ? proposal.title.substring(0, 45) + "…" : proposal.title}</span><span>Proposal-stage engineering estimate</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
-        },
-        base_url: process.env.NEXTAUTH_URL || "",
-      }),
-    });
-
-    if (!createResponse.ok) {
-      console.error("PDF create error:", await createResponse.text());
-      return NextResponse.json({ error: "Failed to create PDF request" }, { status: 500 });
+    // Generate HTML. If embedded PNGs make the payload too large, use the same
+    // text/table diagram fallback that DOCX uses.
+    let html = generateProposalHtml(htmlData);
+    if (html.length > 2_500_000 && Object.keys(drawingImageData).length > 0) {
+      console.warn(`PDF export HTML payload ${html.length} bytes; retrying with drawing text fallbacks.`);
+      html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
     }
 
-    const { request_id } = await createResponse.json();
+    async function createPdfRequest(htmlContent: string) {
+      return fetch("https://apps.abacus.ai/api/createConvertHtmlToPdfRequest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deployment_token: process.env.ABACUSAI_API_KEY,
+          html_content: htmlContent,
+          pdf_options: {
+            format: "A4",
+            print_background: true,
+            margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
+            display_header_footer: true,
+            header_template: '<div></div>',
+            footer_template: `<div style="width:100%;font-size:8px;color:#6b7280;display:flex;justify-content:space-between;gap:12px;padding:0 21mm;font-family:Arial,Helvetica,sans-serif;"><span>${proposalTitle.length > 45 ? proposalTitle.substring(0, 45) + "…" : proposalTitle}</span><span>Proposal-stage engineering estimate</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
+          },
+          base_url: process.env.NEXTAUTH_URL || "",
+        }),
+      });
+    }
+
+    // Step 1: Create PDF request
+    let createResponse = await createPdfRequest(html);
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text().catch(() => "");
+      console.error(`PDF create error for proposal ${proposal.id}: ${createResponse.status} ${errorText}`);
+      if (Object.keys(drawingImageData).length > 0) {
+        console.warn(`Retrying PDF create for proposal ${proposal.id} with drawing text fallbacks.`);
+        html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
+        createResponse = await createPdfRequest(html);
+      }
+      if (!createResponse.ok) {
+        console.error(`PDF create fallback error for proposal ${proposal.id}: ${createResponse.status} ${await createResponse.text().catch(() => "")}`);
+        return NextResponse.json({ error: "Failed to create PDF request" }, { status: 500 });
+      }
+    }
+
+    let { request_id } = await createResponse.json();
     if (!request_id) return NextResponse.json({ error: "No request ID" }, { status: 500 });
 
     // Step 2: Poll for status
     let attempts = 0;
     const maxAttempts = 120;
+    let conversionFallbackStarted = false;
 
     while (attempts < maxAttempts) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -177,7 +210,23 @@ export async function GET(request: Request, { params }: { params: { id: string }
         }
         return NextResponse.json({ error: "PDF generated but no data" }, { status: 500 });
       } else if (status === "FAILED") {
-        console.error("PDF generation failed:", statusResult);
+        console.error(`PDF generation failed for proposal ${proposal.id}:`, statusResult);
+        if (!conversionFallbackStarted && Object.keys(drawingImageData).length > 0) {
+          conversionFallbackStarted = true;
+          console.warn(`Restarting PDF conversion for proposal ${proposal.id} with drawing text fallbacks.`);
+          html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
+          const fallbackCreateResponse = await createPdfRequest(html);
+          if (fallbackCreateResponse.ok) {
+            const fallbackCreate = await fallbackCreateResponse.json();
+            request_id = fallbackCreate?.request_id;
+            if (request_id) {
+              attempts = 0;
+              continue;
+            }
+          } else {
+            console.error(`PDF fallback create error for proposal ${proposal.id}: ${fallbackCreateResponse.status} ${await fallbackCreateResponse.text().catch(() => "")}`);
+          }
+        }
         return NextResponse.json({ error: "PDF generation failed" }, { status: 500 });
       }
 

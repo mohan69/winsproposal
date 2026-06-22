@@ -81,6 +81,115 @@ export type SevereServiceTbeData = {
   cells: Record<string, string>;
 };
 
+function extractedLineItems(extractedData: any): any[] {
+  return Array.isArray(extractedData?.lineItems) ? extractedData.lineItems : [];
+}
+
+function lineItemTag(item: any, fallback: string) {
+  return valueFromObject(item, ["tag", "item", "lineItem", "ref", "tagNo"]) || fallback;
+}
+
+function lineItemDescription(item: any, fallback: string) {
+  return valueFromObject(item, ["description", "itemDescription", "service", "name"]) || fallback;
+}
+
+function lineItemQty(item: any) {
+  return valueFromObject(item, ["quantity", "qty", "count"]) || "Requires engineering validation";
+}
+
+function parsePressureTemperatureFromText(value: string) {
+  const text = String(value ?? "");
+  const pressureMatch = text.match(/(\d+(?:\.\d+)?)\s*barg?\s*(?:to|\/|-|→)\s*(\d+(?:\.\d+)?)\s*barg?/i);
+  const temperatureMatch = text.match(/(?:at|temperature|temp\.?)\s*(-?\d+(?:\.\d+)?)\s*°?\s*C/i);
+  return {
+    inletPressure: pressureMatch ? `${pressureMatch[1]} barg` : "",
+    outletPressure: pressureMatch ? `${pressureMatch[2]} barg` : "",
+    temperature: temperatureMatch ? `${temperatureMatch[1]}°C` : "",
+  };
+}
+
+export function processConditionsForLineItem(item: any, extractedData: any) {
+  const process = extractedData?.processConditions ?? {};
+  const tag = lineItemTag(item, "");
+  const tagProcess = tag && typeof process === "object" ? process[tag] ?? process[tag.toUpperCase?.()] ?? process[tag.toLowerCase?.()] : null;
+  const source = tagProcess && typeof tagProcess === "object" ? { ...process, ...tagProcess, ...item } : { ...process, ...item };
+  const parsed = parsePressureTemperatureFromText(JSON.stringify(item));
+  const missing = "Requires engineering validation";
+  return {
+    fluid: valueFromObject(source, ["fluid", "serviceFluid", "service", "processFluid"]) || valueFromObject(process, ["fluid", "serviceFluid", "service"]) || "Hydrogen service",
+    inletPressure: valueFromObject(source, ["inletPressure", "upstreamPressure", "p1", "inlet", "upstream"]) || parsed.inletPressure || missing,
+    outletPressure: valueFromObject(source, ["outletPressure", "downstreamPressure", "p2", "outlet", "downstream"]) || parsed.outletPressure || missing,
+    temperature: valueFromObject(source, ["temperature", "operatingTemperature", "temp"]) || parsed.temperature || missing,
+    leakageClass: valueFromObject(source, ["leakageClass", "leakage", "seatLeakage"]) || missing,
+  };
+}
+
+export function getHydrogenCommercialSummaryText(extractedData: any) {
+  const items = extractedLineItems(extractedData);
+  if (!items.length) return HYDROGEN_COMMERCIAL_SUMMARY_TEXT;
+  const rows = items.map((item, index) => {
+    const tag = lineItemTag(item, `Line item ${index + 1}`);
+    const qty = lineItemQty(item);
+    const description = lineItemDescription(item, "Control valve package");
+    const isDoc = /doc|mdr|dossier/i.test(`${tag} ${description}`);
+    const commercialBasis = isDoc
+      ? "Documentation package basis"
+      : "Demo placeholder / subject to final sizing, material, accessory, and commercial validation";
+    const optionalCosts = isDoc
+      ? "Included with final MDR/data book; witness/hold point support optional"
+      : "PMI, leakage testing, MDR support, accessory certificates, and special tests where applicable";
+    const deliveryBasis = isDoc ? "With final dispatch" : "Requires engineering validation after drawing approval";
+    return `| ${tag} | ${qty} | ${commercialBasis} | ${optionalCosts} | ${deliveryBasis} |`;
+  });
+  return `| Line Item | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
+|---|---:|---|---|---|
+${rows.join("\n")}
+
+Proposal validity: 60 days from bid due date.
+
+Final pricing is demo placeholder only and requires customer-specific commercial validation.`;
+}
+
+export function getHydrogenTbeSummaryText(extractedData: any) {
+  const items = extractedLineItems(extractedData);
+  if (!items.length) return HYDROGEN_TBE_SUMMARY_TEXT;
+  const lineItems = items.map((item, index) => `${lineItemTag(item, `Line item ${index + 1}`)} - ${lineItemDescription(item, "Control valve package")}`);
+  return `Detailed Technical Bid Evaluation (TBE) is included as Appendix A.
+
+| TBE Summary Item | Proposal-Stage Basis |
+|---|---|
+| Line items | ${lineItems.join("; ")} |
+| Evaluation tags | ${HYDROGEN_TBE_TAGS.join("; ")} |
+| Matrix size | ${lineItems.length} line items × ${HYDROGEN_TBE_TAGS.length} evaluation tags |
+| Review status | Proposal-stage responses mapped; engineering validation required before final submission |
+
+TBE note: Tag-by-tag responses are proposal-stage content. Material, pressure class, size, end connection, body/bonnet type, packing, testing, and certification must not be treated as committed unless confirmed by the RFP, approved knowledge source, and qualified engineering/commercial review.`;
+}
+
+export function getHydrogenTbeData(extractedData: any, tbeData: SevereServiceTbeData | null | undefined): SevereServiceTbeData | null {
+  const items = extractedLineItems(extractedData);
+  if (!items.length) return normalizeHydrogenTbeData(tbeData);
+  const lineItems = items.map((item, index) => `${lineItemTag(item, `Line item ${index + 1}`)} - ${lineItemDescription(item, "Control valve package")}`);
+  const tags = HYDROGEN_TBE_TAGS;
+  const cells: Record<string, string> = {};
+  for (let lineIndex = 0; lineIndex < lineItems.length; lineIndex++) {
+    for (const tag of tags) {
+      cells[`${lineIndex}-${tag}`] =
+        sanitizeHydrogenTbeCell(tbeData?.cells?.[`${lineIndex}-${tag}`]) ??
+        "Proposal-stage response mapped from RFP intelligence. Requires engineering validation before final submission; do not treat material, pressure class, packing, testing, or certification as certified unless confirmed by the RFP or approved knowledge source.";
+    }
+  }
+  return { lineItems, tags, cells };
+}
+
+function sanitizeHydrogenTbeCell(value: string | undefined) {
+  if (!value) return "";
+  if (/(ASTM\s*A216|WCB|Class\s*300|API\s*600|PTFE|ISO\s*9001|certified|monogram|preferred partner|unparalleled|exceeds expectations|proven track record)/i.test(value)) {
+    return "Proposal-stage response mapped from RFP intelligence. Requires engineering validation before final submission; specific material, pressure class, packing, testing, and certification claims must be confirmed by RFP or approved knowledge source.";
+  }
+  return value;
+}
+
 export function normalizeHydrogenTbeData(tbeData: SevereServiceTbeData | null | undefined): SevereServiceTbeData | null {
   if (!tbeData) return null;
   const originalTags = tbeData.tags ?? [];
@@ -102,13 +211,26 @@ export function normalizeHydrogenTbeData(tbeData: SevereServiceTbeData | null | 
   };
 }
 
-export function getHydrogenSectionContentOverride(sectionTitle: string) {
+export function getHydrogenSectionContentOverride(sectionTitle: string, extractedData?: any) {
   if (/executive roi impact summary/i.test(sectionTitle)) return `${HYDROGEN_EXECUTIVE_ROI_TEXT}
 
 ${SEVERE_SERVICE_DISCLAIMER}`;
-  if (/commercial summary/i.test(sectionTitle)) return HYDROGEN_COMMERCIAL_SUMMARY_TEXT;
+  if (/^executive summary$/i.test(sectionTitle)) {
+    const tags = extractedLineItems(extractedData).map((item, index) => lineItemTag(item, `Line item ${index + 1}`));
+    return `WinsProposal has classified this RFP as Hydrogen Process Control / Export Header Control and prepared the response as proposal-stage engineering intelligence for severe-service control valves. The response preserves the extracted RFP tag basis${tags.length ? ` (${tags.join(", ")})` : ""}, maps the required technical/commercial evidence, and flags final sizing, materials, leakage class, accessories, and certification items for qualified engineering validation.
+
+This executive summary is evidence-bound for customer demo review. It does not claim preferred vendor status, certified final sizing, or manufacturer qualifications unless separately supported by approved customer or company records.
+
+${SEVERE_SERVICE_DISCLAIMER}`;
+  }
+  if (/process conditions|service conditions/i.test(sectionTitle)) return formatProcessConditions(extractedData);
+  if (/preliminary engineering calculation summary|calculation/i.test(sectionTitle)) return calculationSummary(inferRfpIntelligence(extractedData ?? {}), extractedData ?? {});
+  if (/datasheet summary/i.test(sectionTitle)) return formatLineItemRows(extractedData) || `| Tag / Ref | Item Description | Qty | Service | Review Status |
+|---|---:|---:|---|---|
+| Requires engineering validation | Control valve package | Requires engineering validation | Hydrogen service | Requires RFP tag confirmation |`;
+  if (/commercial summary/i.test(sectionTitle)) return getHydrogenCommercialSummaryText(extractedData);
   if (/project timeline|delivery schedule|timeline.*delivery/i.test(sectionTitle)) return HYDROGEN_DELIVERY_TIMELINE_TEXT;
-  if (/technical bid evaluation summary/i.test(sectionTitle)) return HYDROGEN_TBE_SUMMARY_TEXT;
+  if (/technical bid evaluation summary/i.test(sectionTitle)) return getHydrogenTbeSummaryText(extractedData);
   if (/bid\s*\/\s*no-bid|bid.*scoring/i.test(sectionTitle)) return HYDROGEN_BID_NO_BID_TEXT;
   if (/executive dashboard/i.test(sectionTitle)) return HYDROGEN_EXECUTIVE_DASHBOARD_TEXT;
   return null;
@@ -438,11 +560,12 @@ function formatLineItemRows(extractedData: any) {
     const qty = valueFromObject(item, ["quantity", "qty"]) || "TBD";
     const sizeClass = valueFromObject(item, ["sizeClass", "size", "pressureClass", "class", "specifications"]) || "Requires confirmation";
     const service = valueFromObject(item, ["service", "application"]) || valueFromObject(process, ["service", "fluid"]) || "Requires confirmation";
-    const fluid = valueFromObject(item, ["fluid"]) || valueFromObject(process, ["fluid", "serviceFluid"]) || "Per RFP";
-    const inlet = valueFromObject(item, ["inletPressure", "p1"]) || valueFromObject(process, ["inletPressure", "upstreamPressure", "p1"]) || "TBD";
-    const outlet = valueFromObject(item, ["outletPressure", "p2"]) || valueFromObject(process, ["outletPressure", "downstreamPressure", "p2"]) || "TBD";
-    const temperature = valueFromObject(item, ["temperature", "temp"]) || valueFromObject(process, ["temperature", "operatingTemperature"]) || "TBD";
-    const leakage = valueFromObject(item, ["leakageClass"]) || valueFromObject(process, ["leakageClass"]) || "Per RFP";
+    const conditions = processConditionsForLineItem(item, extractedData);
+    const fluid = conditions.fluid;
+    const inlet = conditions.inletPressure;
+    const outlet = conditions.outletPressure;
+    const temperature = conditions.temperature;
+    const leakage = conditions.leakageClass;
     return `| ${tag} | ${description} | ${qty} | ${sizeClass} | ${service} | ${fluid} | ${inlet} / ${outlet} | ${temperature} | ${leakage} | Proposal-stage review |`;
   });
   return [
@@ -453,6 +576,18 @@ function formatLineItemRows(extractedData: any) {
 }
 
 function formatProcessConditions(extractedData: any) {
+  const lineItems = extractedLineItems(extractedData);
+  if (lineItems.length) {
+    return [
+      "| Tag / Ref | Fluid / Service | Inlet Pressure | Outlet Pressure | Temperature | Leakage Class | Validation Note |",
+      "|---|---|---|---|---|---|---|",
+      ...lineItems.map((item, index) => {
+        const tag = lineItemTag(item, `Line item ${index + 1}`);
+        const conditions = processConditionsForLineItem(item, extractedData);
+        return `| ${tag} | ${conditions.fluid} | ${conditions.inletPressure} | ${conditions.outletPressure} | ${conditions.temperature} | ${conditions.leakageClass} | Requires engineering validation |`;
+      }),
+    ].join("\n");
+  }
   const conditions = extractedData?.processConditions ?? {};
   const entries = Object.entries(conditions).filter(([, value]) => value !== undefined && value !== null && String(value).trim());
   if (!entries.length) return "Process inputs are partially defined. Final sizing inputs require engineer confirmation before certified design.";
@@ -460,6 +595,22 @@ function formatProcessConditions(extractedData: any) {
 }
 
 function calculationSummary(intelligence: RfpIntelligence, extractedData: any) {
+  const lineItems = extractedLineItems(extractedData);
+  if (lineItems.length) {
+    return `${SEVERE_SERVICE_DISCLAIMER}
+
+| Tag / Ref | Fluid / Service | Inlet Pressure | Outlet Pressure | Temperature | Leakage Class | Proposal-Stage Calculation Note |
+|---|---|---|---|---|---|---|
+${lineItems.map((item, index) => {
+  const tag = lineItemTag(item, `Line item ${index + 1}`);
+  const conditions = processConditionsForLineItem(item, extractedData);
+  return `| ${tag} | ${conditions.fluid} | ${conditions.inletPressure} | ${conditions.outletPressure} | ${conditions.temperature} | ${conditions.leakageClass} | Requires engineering validation; no certified Cv/Kv or final sizing asserted |`;
+}).join("\n")}
+
+Risk flags: ${intelligence.keyRisks.join(", ")}.
+
+Engineering validation checklist: confirm final process cases, fluid properties, pressure class, valve sizing per ISA 75.01 / IEC 60534, pressure-temperature suitability per ASME B16.34, material restrictions including NACE MR0175 / ISO 15156 where applicable, actuator response/fail action, noise/vibration review, leakage class, inspection/test requirements, and approved company sizing-tool output.`;
+  }
   const process = extractedData?.processConditions ?? {};
   const fluid = valueFromObject(process, ["fluid", "serviceFluid", "service"]) || (intelligence.applicationId === "hydrogen-process-control" ? "Hydrogen service" : "Per RFP");
   const p1 = valueFromObject(process, ["inletPressure", "upstreamPressure", "p1"]) || "TBD";
@@ -565,7 +716,7 @@ Bid governance note: Bid Readiness Score ${finalScore}%. Score is a proposal-sta
 
 function commercialSummary(intelligence: RfpIntelligence, extractedData: any) {
   if (intelligence.applicationId === "hydrogen-process-control") {
-    return HYDROGEN_COMMERCIAL_SUMMARY_TEXT;
+    return getHydrogenCommercialSummaryText(extractedData);
   }
   const bidValue = extractedData?.estimatedBidValue ?? extractedData?.bidValue ?? "Pricing placeholder - to be finalized by commercial team";
   return `| Commercial Item | Proposal-Stage Position |
@@ -637,7 +788,7 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
     "Datasheet Summary": lineItemRows || `| Tag / Ref | Item Description | Qty | Service | Review Status |\n|---|---:|---:|---|---|\n| TBD | ${intelligence.valveType} | TBD | ${intelligence.serviceType} | Requires RFP tag confirmation |`,
     "Compliance Matrix": intelligence.complianceItems.map((item) => `- ${item.label}: ${item.standard}`).join("\n"),
     "Technical Bid Evaluation Summary": intelligence.applicationId === "hydrogen-process-control"
-      ? HYDROGEN_TBE_SUMMARY_TEXT
+      ? getHydrogenTbeSummaryText(extractedData)
       : `TBE tags: ${intelligence.tbeTags.join(", ")}.\n\nEvaluate material, trim, pressure class, actuator, accessories, testing, inspection, documentation, deviations, and engineering comments for each line item.`,
     "Inspection and Testing Plan": "Inspection plan should include ITP/QAP review, material traceability, PMI/NDE where applicable, hydrotest, seat leakage test, functional stroke test, accessory checks, witness/hold points, final inspection, release note, and dossier review.",
     "QA/QC and Documentation Plan": "QA/QC plan should govern material certificates, traceability, MDR/data book, inspection records, test certificates, datasheets, GA drawings, calculation summary, deviation register, O&M documents, and final release approvals.",
@@ -651,7 +802,8 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
 
   return SEVERE_SERVICE_SECTION_SPECS.map(([title]) => {
     const found = existing.get(normalizeText(title));
-    if (found?.content && String(found.content).trim().length > 80) return found;
+    const forceDeterministic = /executive summary|scope of supply|process conditions|preliminary engineering calculation summary|datasheet summary|technical bid evaluation summary|drawings and technical visuals|commercial summary/i.test(title);
+    if (!forceDeterministic && found?.content && String(found.content).trim().length > 80) return found;
     return {
       title,
       content: sectionContent[title] ?? `${title} for ${intelligence.application}. ${SEVERE_SERVICE_DISCLAIMER}`,
