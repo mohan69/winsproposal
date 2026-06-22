@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
-import { generateProposalHtml } from "@/lib/pdf-template";
+import { generateFallbackProposalHtml, generateProposalHtml } from "@/lib/pdf-template";
 import { getBestVisualizationType } from "@/lib/visualization-service";
 import { buildEngineeringArtifact } from "@/lib/engineering-artifacts";
 import { getDrawingExportKey, renderDrawingPackagePng } from "@/lib/export-diagram-renderer";
@@ -82,13 +82,19 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const drawingImageData: Record<string, string> = {};
     if (includeDiagrams) {
       for (const section of exportSections) {
-        const artifact = buildEngineeringArtifact({
-          sectionTitle: section.sectionTitle,
-          sectionId: section.id,
-          proposalId: proposal.id,
-          templateType: proposal.templateType,
-          extractedData,
-        });
+        let artifact: ReturnType<typeof buildEngineeringArtifact> = null;
+        try {
+          artifact = buildEngineeringArtifact({
+            sectionTitle: section.sectionTitle,
+            sectionId: section.id,
+            proposalId: proposal.id,
+            templateType: proposal.templateType,
+            extractedData,
+          });
+        } catch (error: any) {
+          console.warn(`PDF artifact fallback for proposal ${proposal.id}, section "${section.sectionTitle}": ${error?.message ?? error}`);
+          continue;
+        }
         for (const drawing of artifact?.drawingPackages ?? []) {
           try {
             const png = await renderDrawingPackagePng(drawing);
@@ -134,9 +140,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
     // Generate HTML. If embedded PNGs make the payload too large, use the same
     // text/table diagram fallback that DOCX uses.
     let html = generateProposalHtml(htmlData);
+    let pdfMode: "rich" | "text-fallback" | "minimal-fallback" = "rich";
     if (html.length > 2_500_000 && Object.keys(drawingImageData).length > 0) {
       console.warn(`PDF export HTML payload ${html.length} bytes; retrying with drawing text fallbacks.`);
       html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
+      pdfMode = "text-fallback";
     }
 
     async function createPdfRequest(htmlContent: string) {
@@ -164,15 +172,23 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text().catch(() => "");
-      console.error(`PDF create error for proposal ${proposal.id}: ${createResponse.status} ${errorText}`);
+      console.error(`PDF create error for proposal ${proposal.id}, mode ${pdfMode}: ${createResponse.status} ${errorText}`);
       if (Object.keys(drawingImageData).length > 0) {
         console.warn(`Retrying PDF create for proposal ${proposal.id} with drawing text fallbacks.`);
         html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
+        pdfMode = "text-fallback";
         createResponse = await createPdfRequest(html);
       }
       if (!createResponse.ok) {
-        console.error(`PDF create fallback error for proposal ${proposal.id}: ${createResponse.status} ${await createResponse.text().catch(() => "")}`);
-        return NextResponse.json({ error: "Failed to create PDF request" }, { status: 500 });
+        console.error(`PDF create text fallback error for proposal ${proposal.id}: ${createResponse.status} ${await createResponse.text().catch(() => "")}`);
+        console.warn(`Retrying PDF create for proposal ${proposal.id} with minimal text/table fallback.`);
+        html = generateFallbackProposalHtml({ ...htmlData, drawingImageData: {} });
+        pdfMode = "minimal-fallback";
+        createResponse = await createPdfRequest(html);
+      }
+      if (!createResponse.ok) {
+        console.error(`PDF create minimal fallback error for proposal ${proposal.id}: ${createResponse.status} ${await createResponse.text().catch(() => "")}`);
+        return NextResponse.json({ error: "PDF export failed after image and text fallback attempts." }, { status: 500 });
       }
     }
 
@@ -210,11 +226,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
         }
         return NextResponse.json({ error: "PDF generated but no data" }, { status: 500 });
       } else if (status === "FAILED") {
-        console.error(`PDF generation failed for proposal ${proposal.id}:`, statusResult);
+        console.error(`PDF generation failed for proposal ${proposal.id}, mode ${pdfMode}:`, statusResult);
         if (!conversionFallbackStarted && Object.keys(drawingImageData).length > 0) {
           conversionFallbackStarted = true;
           console.warn(`Restarting PDF conversion for proposal ${proposal.id} with drawing text fallbacks.`);
           html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
+          pdfMode = "text-fallback";
           const fallbackCreateResponse = await createPdfRequest(html);
           if (fallbackCreateResponse.ok) {
             const fallbackCreate = await fallbackCreateResponse.json();
@@ -227,13 +244,29 @@ export async function GET(request: Request, { params }: { params: { id: string }
             console.error(`PDF fallback create error for proposal ${proposal.id}: ${fallbackCreateResponse.status} ${await fallbackCreateResponse.text().catch(() => "")}`);
           }
         }
-        return NextResponse.json({ error: "PDF generation failed" }, { status: 500 });
+        if (pdfMode !== "minimal-fallback") {
+          console.warn(`Restarting PDF conversion for proposal ${proposal.id} with minimal text/table fallback.`);
+          html = generateFallbackProposalHtml({ ...htmlData, drawingImageData: {} });
+          pdfMode = "minimal-fallback";
+          const minimalCreateResponse = await createPdfRequest(html);
+          if (minimalCreateResponse.ok) {
+            const minimalCreate = await minimalCreateResponse.json();
+            request_id = minimalCreate?.request_id;
+            if (request_id) {
+              attempts = 0;
+              continue;
+            }
+          } else {
+            console.error(`PDF minimal fallback create error for proposal ${proposal.id}: ${minimalCreateResponse.status} ${await minimalCreateResponse.text().catch(() => "")}`);
+          }
+        }
+        return NextResponse.json({ error: "PDF export failed after image and text fallback attempts." }, { status: 500 });
       }
 
       attempts++;
     }
 
-    return NextResponse.json({ error: "PDF generation timed out" }, { status: 500 });
+    return NextResponse.json({ error: "PDF export failed after image and text fallback attempts." }, { status: 500 });
   } catch (error: any) {
     console.error("PDF export error:", error?.message, error?.stack);
     return NextResponse.json({ error: error?.message ?? "Failed to export PDF" }, { status: 500 });

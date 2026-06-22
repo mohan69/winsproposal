@@ -1,4 +1,4 @@
-import { inferRfpIntelligence, parseProposalTemplateMetadata, type SevereServiceApplicationId } from "@/lib/severe-service-intelligence";
+import { inferRfpIntelligence, parseProposalTemplateMetadata, resolvedProposalLineItemTag, type SevereServiceApplicationId } from "@/lib/severe-service-intelligence";
 import { getDrawingSymbolDefinition, type DrawingSymbolInstance, type DrawingSymbolKind } from "@/lib/drawing-symbols";
 
 export type DrawingType =
@@ -98,7 +98,7 @@ function titleCase(value: string) {
 function tagsFromRfp(extractedData: any, fallback: string[]): string[] {
   const items = Array.isArray(extractedData?.lineItems) ? extractedData.lineItems : [];
   const tags = items
-    .map((item: any) => item?.tag ?? item?.item ?? item?.ref ?? item?.lineItem)
+    .map((item: any) => resolvedProposalLineItemTag(item, item?.tag ?? item?.item ?? item?.ref ?? item?.lineItem))
     .map((tag: unknown) => clean(tag, ""))
     .filter(Boolean);
   return tags.length ? tags : fallback;

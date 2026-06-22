@@ -4,12 +4,9 @@ export const SEVERE_SERVICE_DISCLAIMER =
 export const HYDROGEN_EXECUTIVE_ROI_TEXT =
   "WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours. Estimated annual productivity savings are shown as INR 34-42 lakh based on the demo baseline. These figures are indicative proposal-stage estimates and should be validated against the customer’s actual baseline.";
 
-export const HYDROGEN_COMMERCIAL_SUMMARY_TEXT = `| Line Item | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
-|---|---:|---|---|---|
-| HV-H2-3101A/B/C/D | 4 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
-| FV-H2-3150A/B | 2 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval |
-| PV-H2-3190 | 1 | Demo placeholder / subject to final sizing and noise review | Noise review, leakage testing, MDR support where applicable | 16-18 weeks after drawing approval |
-| DOC-H2 MDR Dossier | 1 lot | Documentation package basis | Included with final MDR/data book; witness/hold point support optional | With final dispatch |
+export const HYDROGEN_COMMERCIAL_SUMMARY_TEXT = `| Tag | Service | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
+|---|---|---:|---|---|---|
+| Requires RFP tag confirmation | Severe-service hydrogen control valve package | Requires engineering validation | Demo placeholder / subject to final sizing, material, accessory, and commercial validation | PMI, leakage testing, MDR support, accessory certificates, and special tests where applicable | Requires engineering validation after drawing approval |
 
 Proposal validity: 60 days from bid due date.
 
@@ -85,12 +82,41 @@ function extractedLineItems(extractedData: any): any[] {
   return Array.isArray(extractedData?.lineItems) ? extractedData.lineItems : [];
 }
 
+const IMI_HYDROGEN_SERVICE_TAGS = [
+  { tag: "PCV-101", service: "Hydrogen compressor discharge pressure control", pattern: /compressor\s+discharge/i, inletPressure: "85 barg", outletPressure: "55 barg", temperature: "45°C" },
+  { tag: "PCV-102", service: "Hydrogen recycle control", pattern: /recycle/i, inletPressure: "70 barg", outletPressure: "30 barg", temperature: "50°C" },
+  { tag: "PCV-103", service: "Export header pressure control", pattern: /export\s+header/i, inletPressure: "60 barg", outletPressure: "40 barg", temperature: "40°C" },
+  { tag: "PCV-104", service: "Vent / depressurization control", pattern: /vent|depressuri[sz]ation/i, inletPressure: "85 barg", outletPressure: "1.5 barg", temperature: "45°C" },
+];
+
+function explicitTagFromText(value: unknown) {
+  return String(value ?? "").match(/\b[A-Z]{1,5}V?-\d{2,5}[A-Z]?\b/i)?.[0]?.toUpperCase() ?? "";
+}
+
+function imiHydrogenServiceMatch(item: any) {
+  const text = JSON.stringify(item ?? {});
+  return IMI_HYDROGEN_SERVICE_TAGS.find((entry) => entry.pattern.test(text));
+}
+
 function lineItemTag(item: any, fallback: string) {
-  return valueFromObject(item, ["tag", "item", "lineItem", "ref", "tagNo"]) || fallback;
+  const explicit = explicitTagFromText([
+    valueFromObject(item, ["tag", "tagNo", "ref", "lineItem"]),
+    JSON.stringify(item ?? {}),
+  ].join(" "));
+  return explicit || imiHydrogenServiceMatch(item)?.tag || fallback;
 }
 
 function lineItemDescription(item: any, fallback: string) {
-  return valueFromObject(item, ["description", "itemDescription", "service", "name"]) || fallback;
+  const mapped = imiHydrogenServiceMatch(item)?.service;
+  return mapped || valueFromObject(item, ["service", "description", "itemDescription", "name", "item"]) || fallback;
+}
+
+export function resolvedProposalLineItemTag(item: any, fallback: string) {
+  return lineItemTag(item, fallback);
+}
+
+export function resolvedProposalLineItemService(item: any, fallback: string) {
+  return lineItemDescription(item, fallback);
 }
 
 function lineItemQty(item: any) {
@@ -111,15 +137,18 @@ function parsePressureTemperatureFromText(value: string) {
 export function processConditionsForLineItem(item: any, extractedData: any) {
   const process = extractedData?.processConditions ?? {};
   const tag = lineItemTag(item, "");
-  const tagProcess = tag && typeof process === "object" ? process[tag] ?? process[tag.toUpperCase?.()] ?? process[tag.toLowerCase?.()] : null;
+  const tagUpper = tag.toUpperCase();
+  const tagLower = tag.toLowerCase();
+  const tagProcess = tag && typeof process === "object" ? process[tag] ?? process[tagUpper] ?? process[tagLower] : null;
   const source = tagProcess && typeof tagProcess === "object" ? { ...process, ...tagProcess, ...item } : { ...process, ...item };
   const parsed = parsePressureTemperatureFromText(JSON.stringify(item));
+  const mapped = imiHydrogenServiceMatch(item);
   const missing = "Requires engineering validation";
   return {
-    fluid: valueFromObject(source, ["fluid", "serviceFluid", "service", "processFluid"]) || valueFromObject(process, ["fluid", "serviceFluid", "service"]) || "Hydrogen service",
-    inletPressure: valueFromObject(source, ["inletPressure", "upstreamPressure", "p1", "inlet", "upstream"]) || parsed.inletPressure || missing,
-    outletPressure: valueFromObject(source, ["outletPressure", "downstreamPressure", "p2", "outlet", "downstream"]) || parsed.outletPressure || missing,
-    temperature: valueFromObject(source, ["temperature", "operatingTemperature", "temp"]) || parsed.temperature || missing,
+    fluid: valueFromObject(source, ["fluid", "serviceFluid", "processFluid"]) || valueFromObject(process, ["fluid", "serviceFluid", "processFluid", "service"]) || "Hydrogen service",
+    inletPressure: valueFromObject(source, ["inletPressure", "upstreamPressure", "p1", "inlet", "upstream"]) || parsed.inletPressure || mapped?.inletPressure || missing,
+    outletPressure: valueFromObject(source, ["outletPressure", "downstreamPressure", "p2", "outlet", "downstream"]) || parsed.outletPressure || mapped?.outletPressure || missing,
+    temperature: valueFromObject(source, ["temperature", "operatingTemperature", "temp"]) || parsed.temperature || mapped?.temperature || missing,
     leakageClass: valueFromObject(source, ["leakageClass", "leakage", "seatLeakage"]) || missing,
   };
 }
@@ -139,10 +168,10 @@ export function getHydrogenCommercialSummaryText(extractedData: any) {
       ? "Included with final MDR/data book; witness/hold point support optional"
       : "PMI, leakage testing, MDR support, accessory certificates, and special tests where applicable";
     const deliveryBasis = isDoc ? "With final dispatch" : "Requires engineering validation after drawing approval";
-    return `| ${tag} | ${qty} | ${commercialBasis} | ${optionalCosts} | ${deliveryBasis} |`;
+    return `| ${tag} | ${description} | ${qty} | ${commercialBasis} | ${optionalCosts} | ${deliveryBasis} |`;
   });
-  return `| Line Item | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
-|---|---:|---|---|---|
+  return `| Tag | Service | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
+|---|---|---:|---|---|---|
 ${rows.join("\n")}
 
 Proposal validity: 60 days from bid due date.
@@ -175,7 +204,7 @@ export function getHydrogenTbeData(extractedData: any, tbeData: SevereServiceTbe
   for (let lineIndex = 0; lineIndex < lineItems.length; lineIndex++) {
     for (const tag of tags) {
       cells[`${lineIndex}-${tag}`] =
-        sanitizeHydrogenTbeCell(tbeData?.cells?.[`${lineIndex}-${tag}`]) ??
+        sanitizeHydrogenTbeCell(tbeData?.cells?.[`${lineIndex}-${tag}`]) ||
         "Proposal-stage response mapped from RFP intelligence. Requires engineering validation before final submission; do not treat material, pressure class, packing, testing, or certification as certified unless confirmed by the RFP or approved knowledge source.";
     }
   }
@@ -184,8 +213,8 @@ export function getHydrogenTbeData(extractedData: any, tbeData: SevereServiceTbe
 
 function sanitizeHydrogenTbeCell(value: string | undefined) {
   if (!value) return "";
-  if (/(ASTM\s*A216|WCB|Class\s*300|API\s*600|PTFE|ISO\s*9001|certified|monogram|preferred partner|unparalleled|exceeds expectations|proven track record)/i.test(value)) {
-    return "Proposal-stage response mapped from RFP intelligence. Requires engineering validation before final submission; specific material, pressure class, packing, testing, and certification claims must be confirmed by RFP or approved knowledge source.";
+  if (/(ASTM\s*A216|WCB|Class\s*\d+|\b\d+(\.\d+)?\s*(inches|inch|in\.|")|bolted\s+bonnet|PTFE|graphite\s+packing|API\s*600|ISO\s*9001|certified|certification|monogram|preferred partner|unparalleled|exceeds expectations|proven track record)/i.test(value)) {
+    return "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, and project standards.";
   }
   return value;
 }
@@ -556,21 +585,14 @@ function formatLineItemRows(extractedData: any) {
   const process = extractedData?.processConditions ?? {};
   const rows = lineItems.map((item: any) => {
     const tag = valueFromObject(item, ["tag", "item", "ref", "lineItem"]) || "TBD";
-    const description = valueFromObject(item, ["description", "itemDescription", "service"]) || "Control valve package item";
-    const qty = valueFromObject(item, ["quantity", "qty"]) || "TBD";
-    const sizeClass = valueFromObject(item, ["sizeClass", "size", "pressureClass", "class", "specifications"]) || "Requires confirmation";
-    const service = valueFromObject(item, ["service", "application"]) || valueFromObject(process, ["service", "fluid"]) || "Requires confirmation";
+    const resolvedTag = lineItemTag(item, tag);
+    const service = lineItemDescription(item, valueFromObject(item, ["service", "application"]) || valueFromObject(process, ["service", "fluid"]) || "Requires engineering validation");
     const conditions = processConditionsForLineItem(item, extractedData);
-    const fluid = conditions.fluid;
-    const inlet = conditions.inletPressure;
-    const outlet = conditions.outletPressure;
-    const temperature = conditions.temperature;
-    const leakage = conditions.leakageClass;
-    return `| ${tag} | ${description} | ${qty} | ${sizeClass} | ${service} | ${fluid} | ${inlet} / ${outlet} | ${temperature} | ${leakage} | Proposal-stage review |`;
+    return `| ${resolvedTag} | ${service} | ${conditions.fluid} | ${conditions.inletPressure} | ${conditions.outletPressure} | ${conditions.temperature} | Requires engineering validation for final valve size, pressure class, material, leakage class, trim design, actuator sizing, and final Cv/Kv |`;
   });
   return [
-    "| Tag / Ref | Item Description | Qty | Size / Class | Service | Fluid | Inlet / Outlet Pressure | Temperature | Leakage Class | Review Status |",
-    "|---|---:|---:|---|---|---|---|---|---|---|",
+    "| Tag | Service | Fluid | Inlet Pressure | Outlet Pressure | Temperature | Validation Note |",
+    "|---|---|---|---|---|---|---|",
     ...rows,
   ].join("\n");
 }
@@ -773,19 +795,21 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
   if (!intelligence.isSevereServiceValve) return sections;
   const existing = new Map((sections ?? []).map((section) => [normalizeText(section?.title ?? ""), section]));
   const lineItemRows = formatLineItemRows(extractedData);
+  const hydrogen = intelligence.applicationId === "hydrogen-process-control";
+  const hydrogenOverride = (title: string) => hydrogen ? getHydrogenSectionContentOverride(title, extractedData) : null;
   const sectionContent: Record<string, string> = {
-    "Executive ROI Impact Summary": executiveRoiSummary(intelligence, extractedData),
-    "Executive Summary": `WinsProposal has classified this RFP as ${intelligence.application} and prepared the response as engineering proposal intelligence for severe-service control valves. The proposal response focuses on reducing proposal engineering effort, preserving application knowledge, improving compliance/TBE quality, and giving management a clear technical risk view.\n\n${SEVERE_SERVICE_DISCLAIMER}`,
+    "Executive ROI Impact Summary": hydrogenOverride("Executive ROI Impact Summary") ?? executiveRoiSummary(intelligence, extractedData),
+    "Executive Summary": hydrogenOverride("Executive Summary") ?? `WinsProposal has classified this RFP as ${intelligence.application} and prepared the response as engineering proposal intelligence for severe-service control valves. The proposal response focuses on reducing proposal engineering effort, preserving application knowledge, improving compliance/TBE quality, and giving management a clear technical risk view.\n\n${SEVERE_SERVICE_DISCLAIMER}`,
     "RFP Extraction Intelligence": rfpExtractionIntelligence(intelligence, extractedData),
     "Bid / No-Bid Scoring": bidNoBidScoring(intelligence, extractedData),
     "Project Background / Opportunity Context": `The opportunity is aligned to ${intelligence.serviceType}. The proposal should emphasize process reliability, severe-service application knowledge, standards awareness, technical compliance, and controlled deviation handling.`,
     "Scope of Supply / Line Items": lineItemRows || "Tag-wise scope requires confirmation from the RFP line-item schedule. Proposal response should separate valve bodies, trim, actuators, accessories, documentation, inspection, testing, and exclusions.",
-    "Process Conditions / Service Conditions": formatProcessConditions(extractedData),
+    "Process Conditions / Service Conditions": hydrogenOverride("Process Conditions / Service Conditions") ?? formatProcessConditions(extractedData),
     "Technical Specification Response": `The response should address ${intelligence.valveType}, applicable standards (${intelligence.standardsDetected.join(", ")}), trim/actuator/accessory requirements, documentation, inspection/testing, and all deviations or clarifications required for proposal-stage release.`,
     "Engineering Basis": `Application classification: ${intelligence.application}. Equipment category: ${intelligence.equipmentCategory}. Service type: ${intelligence.serviceType}. Key engineering dependencies include final process data, fluid properties, pressure class, leakage class, material compatibility, actuator response, accessory specification, inspection/testing requirements, and engineering approval.`,
-    "Preliminary Engineering Calculation Summary": calculationSummary(intelligence, extractedData),
+    "Preliminary Engineering Calculation Summary": hydrogenOverride("Preliminary Engineering Calculation Summary") ?? calculationSummary(intelligence, extractedData),
     "Valve Configuration / Trim / Actuator / Accessories": `Preliminary configuration should be selected for ${intelligence.application} with severe-service trim, actuator, positioner, solenoid, limit switch, airset/filter regulator, tubing/fittings, and fail-action requirements reviewed against the RFP. Final valve style, trim staging, noise treatment, and actuator sizing require engineer validation.`,
-    "Datasheet Summary": lineItemRows || `| Tag / Ref | Item Description | Qty | Service | Review Status |\n|---|---:|---:|---|---|\n| TBD | ${intelligence.valveType} | TBD | ${intelligence.serviceType} | Requires RFP tag confirmation |`,
+    "Datasheet Summary": (hydrogenOverride("Datasheet Summary") ?? lineItemRows) || `| Tag / Ref | Item Description | Qty | Service | Review Status |\n|---|---:|---:|---|---|\n| TBD | ${intelligence.valveType} | TBD | ${intelligence.serviceType} | Requires RFP tag confirmation |`,
     "Compliance Matrix": intelligence.complianceItems.map((item) => `- ${item.label}: ${item.standard}`).join("\n"),
     "Technical Bid Evaluation Summary": intelligence.applicationId === "hydrogen-process-control"
       ? getHydrogenTbeSummaryText(extractedData)
@@ -795,14 +819,14 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
     "Drawings and Technical Visuals": drawingGallery(intelligence),
     "Deviations / Clarifications": "Clarifications should capture missing process cases, fluid properties, final pressure/temperature cases, leakage class confirmation, accessory make/model preferences, inspection witness points, delivery assumptions, and any commercial/schedule impacts.",
     "Risk Assessment": `Primary proposal-stage risk flags: ${intelligence.keyRisks.join(", ")}. Risks should be assigned owners, mitigation status, evidence, and management approval path where bid exposure is material.`,
-    "Project Timeline & Delivery": deliveryTimeline(intelligence),
-    "Commercial Summary": commercialSummary(intelligence, extractedData),
-    "Executive Dashboard Snapshot": executiveDashboardSnapshot(intelligence, extractedData),
+    "Project Timeline & Delivery": hydrogenOverride("Project Timeline & Delivery") ?? deliveryTimeline(intelligence),
+    "Commercial Summary": hydrogenOverride("Commercial Summary") ?? commercialSummary(intelligence, extractedData),
+    "Executive Dashboard Snapshot": hydrogenOverride("Executive Dashboard Snapshot") ?? executiveDashboardSnapshot(intelligence, extractedData),
   };
 
   return SEVERE_SERVICE_SECTION_SPECS.map(([title]) => {
     const found = existing.get(normalizeText(title));
-    const forceDeterministic = /executive summary|scope of supply|process conditions|preliminary engineering calculation summary|datasheet summary|technical bid evaluation summary|drawings and technical visuals|commercial summary/i.test(title);
+    const forceDeterministic = /executive roi impact summary|executive summary|bid\s*\/\s*no-bid|scope of supply|process conditions|preliminary engineering calculation summary|datasheet summary|technical bid evaluation summary|drawings and technical visuals|project timeline|delivery|commercial summary|executive dashboard/i.test(title);
     if (!forceDeterministic && found?.content && String(found.content).trim().length > 80) return found;
     return {
       title,

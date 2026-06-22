@@ -1,5 +1,5 @@
 import { inferRfpIntelligence, parseProposalTemplateMetadata, SEVERE_SERVICE_DISCLAIMER } from "@/lib/severe-service-intelligence";
-import { processConditionsForLineItem } from "@/lib/severe-service-intelligence";
+import { processConditionsForLineItem, resolvedProposalLineItemService, resolvedProposalLineItemTag } from "@/lib/severe-service-intelligence";
 import {
   buildDrawingPackages,
   drawingPackageToStructuredText,
@@ -209,8 +209,8 @@ function buildDatasheet(extractedData: any): ArtifactTable[] {
   const items = lineItems(extractedData);
   if (intelligence.applicationId === "lng-compressor-recycle") {
     const rows: Array<Record<string, string>> = items.map((item: any) => {
-      const tag = clean(field(item, ["tag", "item", "ref", "lineItem"]));
-      const itemText = clean(field(item, ["description", "itemDescription"], tag));
+      const tag = clean(resolvedProposalLineItemTag(item, field(item, ["tag", "item", "ref", "lineItem"])));
+      const itemText = clean(resolvedProposalLineItemService(item, field(item, ["description", "itemDescription"], tag)));
       const qty = clean(field(item, ["quantity", "qty"]));
       const specs = clean(field(item, ["sizeClass", "size", "pressureClass", "class", "specifications"]), "Per RFP / engineer validation");
       const service = clean(field(item, ["service", "application"]), "Compressor recycle / anti-surge");
@@ -243,8 +243,8 @@ function buildDatasheet(extractedData: any): ArtifactTable[] {
     }];
   }
   const rows: Array<Record<string, string>> = items.map((item: any) => {
-    const tag = clean(field(item, ["tag", "item", "ref", "lineItem"]));
-    const itemText = clean(field(item, ["description", "itemDescription"], tag));
+    const tag = clean(resolvedProposalLineItemTag(item, field(item, ["tag", "item", "ref", "lineItem"])));
+    const itemText = clean(resolvedProposalLineItemService(item, field(item, ["description", "itemDescription"], tag)));
     const qty = clean(field(item, ["quantity", "qty"]));
     const isDoc = /doc/i.test(tag);
     return {

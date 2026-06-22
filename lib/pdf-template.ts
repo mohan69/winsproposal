@@ -472,14 +472,18 @@ export function generateProposalHtml(data: PdfData): string {
       })
     ),
     artifactHtml: (() => {
-      const artifact = buildEngineeringArtifact({
-        sectionTitle: section.sectionTitle,
-        sectionId: section.id,
-        proposalId: data.proposalId,
-        templateType: data.templateType,
-        extractedData: data.extractedData,
-      });
-      return artifact ? renderArtifactForPdf(artifact, brandColor, data.drawingImageData ?? {}) : "";
+      try {
+        const artifact = buildEngineeringArtifact({
+          sectionTitle: section.sectionTitle,
+          sectionId: section.id,
+          proposalId: data.proposalId,
+          templateType: data.templateType,
+          extractedData: data.extractedData,
+        });
+        return artifact ? renderArtifactForPdf(artifact, brandColor, data.drawingImageData ?? {}) : "";
+      } catch {
+        return `<div class="artifact-disclaimer">Diagram rendered as text fallback.</div>`;
+      }
     })(),
   }));
   const safeTbeData = data.tbeData
@@ -824,6 +828,59 @@ export function generateProposalHtml(data: PdfData): string {
     </table>
   </div>`).join("")}
   ` : ""}
+</body>
+</html>`;
+}
+
+export function generateFallbackProposalHtml(data: PdfData): string {
+  const brandColor = sanitizeHexColor(data.brandColor);
+  const safeTitle = escapeHtml(data.title);
+  const sections = data.sections.map((section, index) => `
+    <section class="section">
+      <h2>${index + 1}. ${escapeHtml(section.sectionTitle)}</h2>
+      ${markdownToHtml(section.content)}
+    </section>
+  `).join("");
+  const tbe = data.tbeData ? `
+    <section class="section">
+      <h2>Appendix A: Detailed Technical Bid Evaluation (TBE)</h2>
+      <p>${escapeHtml(data.tbeData.lineItems.length)} line items x ${escapeHtml(data.tbeData.tags.length)} evaluation tags</p>
+      ${data.tbeData.lineItems.map((lineItem, lineIndex) => `
+        <h3>${escapeHtml(lineItem)}</h3>
+        <table>
+          <thead><tr><th>Evaluation Tag</th><th>Proposal-Stage Response</th></tr></thead>
+          <tbody>${data.tbeData!.tags.map((tag) => `<tr><td>${escapeHtml(tag)}</td><td>${escapeHtml(data.tbeData!.cells[`${lineIndex}-${tag}`] ?? "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, and project standards.")}</td></tr>`).join("")}</tbody>
+        </table>
+      `).join("")}
+    </section>
+  ` : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size:A4; margin:16mm; }
+    * { box-sizing:border-box; }
+    body { font-family:Arial, Helvetica, sans-serif; color:#1f2937; font-size:10.5pt; line-height:1.45; }
+    h1 { color:${brandColor}; font-size:22pt; margin:0 0 8mm; border-bottom:3px solid ${brandColor}; padding-bottom:4mm; }
+    h2 { color:#0f3440; font-size:14pt; margin:8mm 0 3mm; border-bottom:1px solid #cbd5e1; padding-bottom:2mm; }
+    h3 { color:#1f2937; font-size:11pt; margin:5mm 0 2mm; }
+    p { margin:0 0 3mm; }
+    table { width:100%; border-collapse:collapse; margin:3mm 0 5mm; font-size:8.5pt; page-break-inside:auto; }
+    th { background:#eff6ff; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+    td { border:1px solid #d1d5db; padding:5px; vertical-align:top; }
+    tr { page-break-inside:avoid; }
+    .meta { color:#64748b; margin-bottom:6mm; }
+    .notice { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:8px; margin:4mm 0; font-weight:700; }
+    .section { page-break-inside:auto; margin-bottom:7mm; }
+  </style>
+</head>
+<body>
+  <h1>${safeTitle}</h1>
+  <div class="meta">${escapeHtml(data.templateType)} | ${escapeHtml(data.status)} | Fallback export</div>
+  <div class="notice">PDF generated with simplified text/table fallback. Diagram rendered as text fallback where applicable.</div>
+  ${sections}
+  ${tbe}
 </body>
 </html>`;
 }
