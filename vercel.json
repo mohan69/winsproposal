@@ -6,12 +6,12 @@
     "app/api/pdf-health/route.ts": {
       "includeFiles": "node_modules/@sparticuz/chromium/bin/**",
       "maxDuration": 60,
-      "memory": 3008
+      "memory": 2048
     },
     "app/api/proposals/[id]/export-pdf/route.ts": {
       "includeFiles": "node_modules/@sparticuz/chromium/bin/**",
       "maxDuration": 60,
-      "memory": 3008
+      "memory": 2048
     }
   }
 }
