@@ -3,9 +3,9 @@ import {
   buildDrawingPackages,
   drawingPackageToStructuredText,
   PROPOSAL_STAGE_DRAWING_DISCLAIMER,
-  renderDrawingPackageHtml,
   type DrawingPackage,
 } from "@/lib/drawing-intelligence";
+import { getDrawingExportKey, renderDrawingPackageExportHtml } from "@/lib/export-diagram-renderer";
 
 export type EngineeringArtifactType =
   | "datasheet_summary"
@@ -788,7 +788,7 @@ export function artifactToMarkdown(artifact: EngineeringArtifact) {
   return parts.join("\n");
 }
 
-export function renderArtifactForPdf(artifact: EngineeringArtifact, brandColor = "#1a365d") {
+export function renderArtifactForPdf(artifact: EngineeringArtifact, brandColor = "#1a365d", drawingImageData: Record<string, string> = {}) {
   const tables = (artifact.tables ?? []).map((table) => `
     ${table.title ? `<div class="artifact-table-title">${escapeHtml(table.title)}</div>` : ""}
     <table class="artifact-table">
@@ -796,7 +796,9 @@ export function renderArtifactForPdf(artifact: EngineeringArtifact, brandColor =
       <tbody>${table.rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody>
     </table>
   `).join("");
-  const drawingPackages = (artifact.drawingPackages ?? []).map((drawing) => renderDrawingPackageHtml(drawing, brandColor)).join("");
+  const drawingPackages = (artifact.drawingPackages ?? []).map((drawing) => (
+    renderDrawingPackageExportHtml(drawing, brandColor, drawingImageData[getDrawingExportKey(drawing)] ?? drawingImageData[drawing.title])
+  )).join("");
   const visuals = drawingPackages || (artifact.visuals ?? []).map((visual) => {
     const enhanced = enhancedDrawingHtml(visual, brandColor);
     return `

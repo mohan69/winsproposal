@@ -21,6 +21,11 @@ import {
   Table, TableRow, TableCell, WidthType, ShadingType,
   Bookmark, InternalHyperlink,
 } from "docx";
+import {
+  DIAGRAM_TEXT_FALLBACK_WARNING,
+  drawingPackageFallbackRows,
+  renderDrawingPackagePng,
+} from "@/lib/export-diagram-renderer";
 
 const FONT_BODY = "Calibri";
 const FONT_HEADING = "Calibri";
@@ -597,29 +602,60 @@ function buildEnhancedDrawingDocx(visual: NonNullable<EngineeringArtifact["visua
   return new Table({ rows, width: { size: 9600, type: WidthType.DXA } });
 }
 
-function drawingPackageToMermaidFallback(drawing: DrawingPackage) {
-  const nodes = drawing.symbols.slice(0, 8);
-  if (nodes.length === 0) {
-    return `graph LR\n  A["${drawing.title}"] --> B["Engineering Review Required"]`;
-  }
-  const lines = ["graph LR"];
-  nodes.forEach((symbol, index) => {
-    lines.push(`  N${index}["${String(symbol.tag || symbol.label).replace(/"/g, "'")}"]`);
-  });
-  for (let index = 0; index < nodes.length - 1; index++) lines.push(`  N${index} --> N${index + 1}`);
-  return lines.join("\n");
-}
-
-async function fetchDrawingFallbackPng(drawing: DrawingPackage): Promise<Buffer> {
-  const url = getMermaidImageUrl(drawingPackageToMermaidFallback(drawing), "png");
-  const image = await fetchImageBuffer(url, { minWidth: 240, minHeight: 120 });
-  if (image?.buffer && image.buffer.length > 5000) return image.buffer;
-  throw new Error(`Unable to render DOCX drawing PNG for ${drawing.title}`);
+function buildDrawingPackageTextFallbackDocx(drawing: DrawingPackage, brandColor: string): DocxBlock[] {
+  const rows = drawingPackageFallbackRows(drawing);
+  return [
+    new Paragraph({ children: [new PageBreak()] }),
+    new Paragraph({
+      children: [docxText(drawing.title, { bold: true, color: brandColor, size: SIZE_BODY })],
+      spacing: { before: 100, after: 50 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(drawing.subtitle, { color: "4b5563", size: SIZE_SMALL })],
+      spacing: { after: 50 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(`${drawingTypeLabel(drawing.drawingType)} | ${drawing.reviewStatus.join(" - ")}`, { bold: true, color: "4b5563", size: SIZE_SMALL })],
+      spacing: { after: 60 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(drawing.disclaimer, { italics: true, color: "92400e", size: SIZE_SMALL })],
+      spacing: { after: 80 },
+      keepNext: true,
+    }),
+    new Paragraph({
+      children: [docxText(DIAGRAM_TEXT_FALLBACK_WARNING, { bold: true, color: "92400e", size: SIZE_SMALL })],
+      spacing: { after: 80 },
+      keepNext: true,
+    }),
+    new Table({
+      width: { size: 9600, type: WidthType.DXA },
+      rows: [
+        new TableRow({
+          children: ["Step", "Symbol / Node", "Tag", "Role"].map((header) => docxCell([
+            new Paragraph({ children: [docxText(header, { bold: true, color: "FFFFFF", size: 16 })] }),
+          ], { shading: brandColor })),
+        }),
+        ...rows.map((row, index) => new TableRow({
+          children: [
+            docxCell([new Paragraph({ children: [docxText(String(row.step), { bold: true, color: brandColor, size: 15 })] })], { shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+            docxCell([new Paragraph({ children: [docxText(row.symbol, { bold: true, color: "1f2937", size: 15 })] })], { shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+            docxCell([new Paragraph({ children: [docxText(row.tag, { color: brandColor, size: 15 })] })], { shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+            docxCell([new Paragraph({ children: [docxText(row.role, { color: "4b5563", size: 15 })] })], { shading: index % 2 === 0 ? "FFFFFF" : "F8FAFC" }),
+          ],
+        })),
+      ],
+    }),
+  ];
 }
 
 async function buildDrawingPackageImageBlocks(drawing: DrawingPackage, brandColor: string): Promise<DocxBlock[]> {
-  const png = await fetchDrawingFallbackPng(drawing);
-  const dimensions = getImageDimensions(png) ?? { width: 900, height: 520 };
+  const rendered = await renderDrawingPackagePng(drawing);
+  if (!rendered) return buildDrawingPackageTextFallbackDocx(drawing, brandColor);
+
   return [
     new Paragraph({ children: [new PageBreak()] }),
     new Paragraph({
@@ -646,8 +682,8 @@ async function buildDrawingPackageImageBlocks(drawing: DrawingPackage, brandColo
       children: [
         new ImageRun({
           type: "png",
-          data: png,
-          transformation: fitDocxImage(dimensions.width, dimensions.height, DOCX_VISUAL_WIDTH, 330),
+          data: rendered.buffer,
+          transformation: fitDocxImage(rendered.width, rendered.height, DOCX_VISUAL_WIDTH, 330),
           altText: { title: drawing.title, description: drawing.subtitle, name: drawing.title },
         }),
       ],

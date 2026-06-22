@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateProposalHtml } from "@/lib/pdf-template";
 import { getBestVisualizationType } from "@/lib/visualization-service";
+import { buildEngineeringArtifact } from "@/lib/engineering-artifacts";
+import { getDrawingExportKey, renderDrawingPackagePng } from "@/lib/export-diagram-renderer";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -65,8 +67,26 @@ export async function GET(request: Request, { params }: { params: { id: string }
       complianceTotal: checklist?.length ?? 0,
     });
 
-    // PDF diagrams are drawn as native HTML/CSS so the PDF converter does not depend
-    // on external Mermaid image loading.
+    const drawingImageData: Record<string, string> = {};
+    if (includeDiagrams) {
+      for (const section of proposal.sections) {
+        const artifact = buildEngineeringArtifact({
+          sectionTitle: section.sectionTitle,
+          sectionId: section.id,
+          proposalId: proposal.id,
+          templateType: proposal.templateType,
+          extractedData,
+        });
+        for (const drawing of artifact?.drawingPackages ?? []) {
+          try {
+            const png = await renderDrawingPackagePng(drawing);
+            if (png?.dataUri) drawingImageData[getDrawingExportKey(drawing)] = png.dataUri;
+          } catch (error: any) {
+            console.warn(`PDF diagram PNG fallback for ${drawing.title}: ${error?.message ?? error}`);
+          }
+        }
+      }
+    }
 
     // Generate HTML
     const html = generateProposalHtml({
@@ -97,6 +117,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       complianceItems: checklist ?? undefined,
       tbeData: tbeData ?? undefined,
       extractedData,
+      drawingImageData,
     });
 
     // Step 1: Create PDF request

@@ -47,6 +47,7 @@ interface PdfData {
   complianceItems?: CompliancePdfItem[];
   tbeData?: TbeData;
   extractedData?: any;
+  drawingImageData?: Record<string, string>;
 }
 
 function escapeHtml(value: unknown): string {
@@ -478,7 +479,7 @@ export function generateProposalHtml(data: PdfData): string {
         templateType: data.templateType,
         extractedData: data.extractedData,
       });
-      return artifact ? renderArtifactForPdf(artifact, brandColor) : "";
+      return artifact ? renderArtifactForPdf(artifact, brandColor, data.drawingImageData ?? {}) : "";
     })(),
   }));
   const safeTbeData = data.tbeData
@@ -636,6 +637,13 @@ export function generateProposalHtml(data: PdfData): string {
     .die-status { color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:999px; padding:4px 7px; height:max-content; font-size:7.5px; font-weight:800; }
     .die-disclaimer { color:#92400e; background:#fffbeb; border-bottom:1px solid #fde68a; padding:5px 9px; font-size:7.8px; font-weight:700; line-height:1.3; }
     .die-svg { width:100%; height:auto; display:block; background:white; margin:0 auto; overflow:visible; }
+    .diagram-image-frame { padding:8px; background:white; text-align:center; break-inside:avoid; page-break-inside:avoid; }
+    .diagram-image-frame img { display:block; max-width:100%; width:100%; height:auto; max-height:155mm; object-fit:contain; margin:0 auto; }
+    .diagram-fallback-warning { color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; margin:8px; padding:7px 8px; font-size:8.5px; font-weight:800; }
+    .diagram-fallback-table { width:calc(100% - 16px); margin:8px; border-collapse:collapse; background:white; font-size:8.5px; }
+    .diagram-fallback-table th { background:#eff6ff; color:#111827; text-align:left; padding:6px; border:1px solid #cbd5e1; font-size:7.8px; }
+    .diagram-fallback-table td { padding:6px; border:1px solid #d1d5db; vertical-align:top; }
+    .diagram-fallback-notes { margin:8px; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 8px; font-size:8.5px; line-height:1.35; }
     .die-symbol-label { fill:#0f172a; font-size:10px; font-weight:800; text-anchor:middle; }
     .die-symbol-tag { fill:${brandColor}; font-size:9.4px; font-weight:900; text-anchor:middle; }
     .die-connector-label { fill:#475569; font-size:8.6px; font-weight:800; text-anchor:middle; }
