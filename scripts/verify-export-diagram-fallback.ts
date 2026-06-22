@@ -86,9 +86,15 @@ async function main() {
   assert(!/Unable to render DOCX drawing PNG/i.test(pdfFallback), "Export fallback should not leak old hard failure text");
 
   const pdfRouteSource = fs.readFileSync(path.join(process.cwd(), "app", "api", "proposals", "[id]", "export-pdf", "route.ts"), "utf8");
-  assert(pdfRouteSource.includes("generateFallbackProposalHtml"), "PDF route should include final minimal fallback template");
+  assert(pdfRouteSource.includes("renderHtmlToPdf"), "PDF route should use the shared PDF renderer");
+  assert(pdfRouteSource.includes("generateSimplifiedProposalHtml"), "PDF route should include simplified text/table fallback template");
+  assert(pdfRouteSource.includes("generateUltraMinimalProposalHtml"), "PDF route should include ultra-minimal fallback template");
   assert(pdfRouteSource.includes("PDF export failed after image and text fallback attempts."), "PDF route should return the safe final fallback error");
-  assert(pdfRouteSource.includes("with drawing text fallbacks"), "PDF route should retry with drawing text fallbacks");
+  assert(pdfRouteSource.includes("text-fallback"), "PDF route should retry with drawing text fallbacks");
+
+  const pdfHealthRoute = fs.readFileSync(path.join(process.cwd(), "app", "api", "pdf-health", "route.ts"), "utf8");
+  assert(pdfHealthRoute.includes("PDF Health Check"), "PDF health route should render the static health-check HTML");
+  assert(pdfHealthRoute.includes("renderHtmlToPdf"), "PDF health route should use the same renderer as proposal export");
 
   const imiExtractedData = {
     title: "IMI Severe-Service Hydrogen Control Valve RFP",
@@ -132,13 +138,13 @@ async function main() {
   const sanitizedTbe = getHydrogenTbeData(imiExtractedData, {
     lineItems: ["bad"],
     tags: ["Material"],
-    cells: { "0-Material": "ASTM A216 WCB, Class 150, Class 300, 2 inches, bolted bonnet, API 600, PTFE packing, ISO 9001:2015 certified" },
+    cells: { "0-Material": "ASTM A216 WCB, Class 150, Class 300, 2 inches, bolted bonnet, API 600, PTFE packing, ISO 9001:2015 certified. We provide flanged end connections. Our globe control valves feature bolted bonnet construction. Our valves undergo rigorous testing." },
   });
   const tbeText = JSON.stringify(sanitizedTbe);
-  for (const forbidden of ["ASTM A216", "WCB", "Class 300", "Class 150", "2 inches", "bolted bonnet", "API 600", "PTFE", "ISO 9001"]) {
+  for (const forbidden of ["ASTM A216", "WCB", "Class 300", "Class 150", "2 inches", "bolted bonnet", "API 600", "PTFE", "ISO 9001", "We provide", "Our globe control valves", "Our valves undergo", "rigorous testing"]) {
     assert(!tbeText.includes(forbidden), `TBE export should not assert unsupported ${forbidden}`);
   }
-  assert(tbeText.includes("Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, and project standards."), "TBE export should fall back to the required engineering validation language");
+  assert(tbeText.includes("Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, inspection plan, and project standards."), "TBE export should fall back to the required engineering validation language");
 
   console.log("Export diagram PNG and fallback behavior verified.");
 }

@@ -849,7 +849,7 @@ export function generateFallbackProposalHtml(data: PdfData): string {
         <h3>${escapeHtml(lineItem)}</h3>
         <table>
           <thead><tr><th>Evaluation Tag</th><th>Proposal-Stage Response</th></tr></thead>
-          <tbody>${data.tbeData!.tags.map((tag) => `<tr><td>${escapeHtml(tag)}</td><td>${escapeHtml(data.tbeData!.cells[`${lineIndex}-${tag}`] ?? "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, and project standards.")}</td></tr>`).join("")}</tbody>
+          <tbody>${data.tbeData!.tags.map((tag) => `<tr><td>${escapeHtml(tag)}</td><td>${escapeHtml(data.tbeData!.cells[`${lineIndex}-${tag}`] ?? "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, inspection plan, and project standards.")}</td></tr>`).join("")}</tbody>
         </table>
       `).join("")}
     </section>
@@ -881,6 +881,87 @@ export function generateFallbackProposalHtml(data: PdfData): string {
   <div class="notice">PDF generated with simplified text/table fallback. Diagram rendered as text fallback where applicable.</div>
   ${sections}
   ${tbe}
+</body>
+</html>`;
+}
+
+export function generateSimplifiedProposalHtml(data: PdfData): string {
+  const brandColor = sanitizeHexColor(data.brandColor);
+  const safeTitle = escapeHtml(data.title);
+  const sections = data.sections
+    .filter((section) => !/drawings|technical visuals|appendix|technical bid evaluation/i.test(section.sectionTitle))
+    .map((section, index) => `
+      <section class="section">
+        <h2>${index + 1}. ${escapeHtml(section.sectionTitle)}</h2>
+        ${markdownToHtml(section.content)}
+      </section>
+    `).join("");
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size:A4; margin:16mm; }
+    * { box-sizing:border-box; }
+    body { font-family:Arial, Helvetica, sans-serif; color:#1f2937; font-size:10.5pt; line-height:1.45; }
+    h1 { color:${brandColor}; font-size:21pt; margin:0 0 7mm; border-bottom:3px solid ${brandColor}; padding-bottom:4mm; }
+    h2 { color:#0f3440; font-size:13.5pt; margin:8mm 0 3mm; border-bottom:1px solid #cbd5e1; padding-bottom:2mm; }
+    p { margin:0 0 3mm; }
+    table { width:100%; border-collapse:collapse; margin:3mm 0 5mm; font-size:8.5pt; page-break-inside:auto; }
+    th { background:#eff6ff; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+    td { border:1px solid #d1d5db; padding:5px; vertical-align:top; }
+    tr { page-break-inside:avoid; }
+    .notice { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:8px; margin:4mm 0; font-weight:700; }
+    .section { margin-bottom:7mm; }
+  </style>
+</head>
+<body>
+  <h1>${safeTitle}</h1>
+  <div class="notice">Simplified PDF fallback. Detailed technical appendix available in DOCX export. Drawing visuals are omitted from this fallback PDF.</div>
+  ${sections}
+</body>
+</html>`;
+}
+
+export function generateUltraMinimalProposalHtml(data: PdfData): string {
+  const brandColor = sanitizeHexColor(data.brandColor);
+  const safeTitle = escapeHtml(data.title);
+  const wanted = [
+    /executive summary/i,
+    /scope of supply|line items/i,
+    /process conditions|service conditions/i,
+    /compliance matrix/i,
+    /commercial summary/i,
+  ];
+  const selected = data.sections.filter((section) => wanted.some((pattern) => pattern.test(section.sectionTitle)));
+  const sections = selected.map((section) => `
+    <section>
+      <h2>${escapeHtml(section.sectionTitle)}</h2>
+      ${markdownToHtml(section.content)}
+    </section>
+  `).join("");
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page { size:A4; margin:18mm; }
+    body { font-family:Arial, Helvetica, sans-serif; color:#1f2937; font-size:10.5pt; line-height:1.45; }
+    h1 { color:${brandColor}; font-size:20pt; margin:0 0 8mm; }
+    h2 { color:#0f3440; font-size:13pt; margin:7mm 0 3mm; border-bottom:1px solid #cbd5e1; padding-bottom:2mm; }
+    p { margin:0 0 3mm; }
+    table { width:100%; border-collapse:collapse; margin:3mm 0 5mm; font-size:8.5pt; }
+    th { background:#eff6ff; border:1px solid #cbd5e1; padding:5px; text-align:left; }
+    td { border:1px solid #d1d5db; padding:5px; vertical-align:top; }
+    .notice { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:8px; margin:4mm 0; font-weight:700; }
+    .footer { margin-top:10mm; color:#64748b; font-size:9pt; border-top:1px solid #cbd5e1; padding-top:3mm; }
+  </style>
+</head>
+<body>
+  <h1>${safeTitle}</h1>
+  <div class="notice">Ultra-minimal PDF fallback. Detailed technical appendix available in DOCX export. Preliminary proposal-stage engineering estimate. Final sizing/design must be validated by qualified engineers using company-approved tools and standards.</div>
+  ${sections}
+  <div class="footer">WinsProposal Demo Engine | Proposal-stage engineering estimate</div>
 </body>
 </html>`;
 }

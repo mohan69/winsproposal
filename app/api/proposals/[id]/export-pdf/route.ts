@@ -5,7 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
-import { generateFallbackProposalHtml, generateProposalHtml } from "@/lib/pdf-template";
+import { generateProposalHtml, generateSimplifiedProposalHtml, generateUltraMinimalProposalHtml } from "@/lib/pdf-template";
+import { PdfRenderError, renderHtmlToPdf } from "@/lib/pdf-renderer";
 import { getBestVisualizationType } from "@/lib/visualization-service";
 import { buildEngineeringArtifact } from "@/lib/engineering-artifacts";
 import { getDrawingExportKey, renderDrawingPackagePng } from "@/lib/export-diagram-renderer";
@@ -140,133 +141,49 @@ export async function GET(request: Request, { params }: { params: { id: string }
     // Generate HTML. If embedded PNGs make the payload too large, use the same
     // text/table diagram fallback that DOCX uses.
     let html = generateProposalHtml(htmlData);
-    let pdfMode: "rich" | "text-fallback" | "minimal-fallback" = "rich";
+    let pdfMode: "rich" | "text-fallback" | "minimal-fallback" | "ultra-minimal-fallback" = "rich";
     if (html.length > 2_500_000 && Object.keys(drawingImageData).length > 0) {
       console.warn(`PDF export HTML payload ${html.length} bytes; retrying with drawing text fallbacks.`);
       html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
       pdfMode = "text-fallback";
     }
 
-    async function createPdfRequest(htmlContent: string) {
-      return fetch("https://apps.abacus.ai/api/createConvertHtmlToPdfRequest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deployment_token: process.env.ABACUSAI_API_KEY,
-          html_content: htmlContent,
-          pdf_options: {
-            format: "A4",
-            print_background: true,
-            margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
-            display_header_footer: true,
-            header_template: '<div></div>',
-            footer_template: `<div style="width:100%;font-size:8px;color:#6b7280;display:flex;justify-content:space-between;gap:12px;padding:0 21mm;font-family:Arial,Helvetica,sans-serif;"><span>${proposalTitle.length > 45 ? proposalTitle.substring(0, 45) + "…" : proposalTitle}</span><span>Proposal-stage engineering estimate</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
+    const footerTemplate = `<div style="width:100%;font-size:8px;color:#6b7280;display:flex;justify-content:space-between;gap:12px;padding:0 21mm;font-family:Arial,Helvetica,sans-serif;"><span>${proposalTitle.length > 45 ? proposalTitle.substring(0, 45) + "..." : proposalTitle}</span><span>Proposal-stage engineering estimate</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`;
+    const attempts = [
+      { mode: pdfMode, html },
+      { mode: "text-fallback" as const, html: generateProposalHtml({ ...htmlData, drawingImageData: {} }) },
+      { mode: "minimal-fallback" as const, html: generateSimplifiedProposalHtml({ ...htmlData, drawingImageData: {}, tbeData: undefined }) },
+      { mode: "ultra-minimal-fallback" as const, html: generateUltraMinimalProposalHtml({ ...htmlData, drawingImageData: {}, tbeData: undefined }) },
+    ].filter((attempt, index, list) => list.findIndex((item) => item.mode === attempt.mode) === index);
+
+    const failures: string[] = [];
+    for (const attempt of attempts) {
+      try {
+        console.info(`Starting PDF render for proposal ${proposal.id}; mode=${attempt.mode}; includeDiagrams=${includeDiagrams}; htmlBytes=${Buffer.byteLength(attempt.html, "utf8")}`);
+        const result = await renderHtmlToPdf({
+          stage: `proposal-${attempt.mode}`,
+          html: attempt.html,
+          footerTemplate,
+          baseUrl: process.env.NEXTAUTH_URL || "",
+        });
+        const filename = `${proposal.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50)}_Proposal.pdf`;
+        return new NextResponse(result.pdfBuffer, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `attachment; filename="${filename}"`,
           },
-          base_url: process.env.NEXTAUTH_URL || "",
-        }),
-      });
-    }
-
-    // Step 1: Create PDF request
-    let createResponse = await createPdfRequest(html);
-
-    if (!createResponse.ok) {
-      const errorText = await createResponse.text().catch(() => "");
-      console.error(`PDF create error for proposal ${proposal.id}, mode ${pdfMode}: ${createResponse.status} ${errorText}`);
-      if (Object.keys(drawingImageData).length > 0) {
-        console.warn(`Retrying PDF create for proposal ${proposal.id} with drawing text fallbacks.`);
-        html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
-        pdfMode = "text-fallback";
-        createResponse = await createPdfRequest(html);
-      }
-      if (!createResponse.ok) {
-        console.error(`PDF create text fallback error for proposal ${proposal.id}: ${createResponse.status} ${await createResponse.text().catch(() => "")}`);
-        console.warn(`Retrying PDF create for proposal ${proposal.id} with minimal text/table fallback.`);
-        html = generateFallbackProposalHtml({ ...htmlData, drawingImageData: {} });
-        pdfMode = "minimal-fallback";
-        createResponse = await createPdfRequest(html);
-      }
-      if (!createResponse.ok) {
-        console.error(`PDF create minimal fallback error for proposal ${proposal.id}: ${createResponse.status} ${await createResponse.text().catch(() => "")}`);
-        return NextResponse.json({ error: "PDF export failed after image and text fallback attempts." }, { status: 500 });
+        });
+      } catch (error: any) {
+        const safeReason = error instanceof PdfRenderError ? error.safeReason : error?.message ?? "Unknown renderer error.";
+        failures.push(`${attempt.mode}: ${safeReason}`);
+        console.error(`PDF render attempt failed for proposal ${proposal.id}; mode=${attempt.mode}; reason=${safeReason}`);
       }
     }
 
-    let { request_id } = await createResponse.json();
-    if (!request_id) return NextResponse.json({ error: "No request ID" }, { status: 500 });
-
-    // Step 2: Poll for status
-    let attempts = 0;
-    const maxAttempts = 120;
-    let conversionFallbackStarted = false;
-
-    while (attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      const statusResponse = await fetch("https://apps.abacus.ai/api/getConvertHtmlToPdfStatus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request_id, deployment_token: process.env.ABACUSAI_API_KEY }),
-      });
-
-      const statusResult = await statusResponse.json();
-      const status = statusResult?.status || "FAILED";
-
-      if (status === "SUCCESS") {
-        const result = statusResult?.result;
-        if (result?.result) {
-          const pdfBuffer = Buffer.from(result.result, "base64");
-          const filename = `${proposal.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50)}_Proposal.pdf`;
-          return new NextResponse(pdfBuffer, {
-            headers: {
-              "Content-Type": "application/pdf",
-              "Content-Disposition": `attachment; filename="${filename}"`,
-            },
-          });
-        }
-        return NextResponse.json({ error: "PDF generated but no data" }, { status: 500 });
-      } else if (status === "FAILED") {
-        console.error(`PDF generation failed for proposal ${proposal.id}, mode ${pdfMode}:`, statusResult);
-        if (!conversionFallbackStarted && Object.keys(drawingImageData).length > 0) {
-          conversionFallbackStarted = true;
-          console.warn(`Restarting PDF conversion for proposal ${proposal.id} with drawing text fallbacks.`);
-          html = generateProposalHtml({ ...htmlData, drawingImageData: {} });
-          pdfMode = "text-fallback";
-          const fallbackCreateResponse = await createPdfRequest(html);
-          if (fallbackCreateResponse.ok) {
-            const fallbackCreate = await fallbackCreateResponse.json();
-            request_id = fallbackCreate?.request_id;
-            if (request_id) {
-              attempts = 0;
-              continue;
-            }
-          } else {
-            console.error(`PDF fallback create error for proposal ${proposal.id}: ${fallbackCreateResponse.status} ${await fallbackCreateResponse.text().catch(() => "")}`);
-          }
-        }
-        if (pdfMode !== "minimal-fallback") {
-          console.warn(`Restarting PDF conversion for proposal ${proposal.id} with minimal text/table fallback.`);
-          html = generateFallbackProposalHtml({ ...htmlData, drawingImageData: {} });
-          pdfMode = "minimal-fallback";
-          const minimalCreateResponse = await createPdfRequest(html);
-          if (minimalCreateResponse.ok) {
-            const minimalCreate = await minimalCreateResponse.json();
-            request_id = minimalCreate?.request_id;
-            if (request_id) {
-              attempts = 0;
-              continue;
-            }
-          } else {
-            console.error(`PDF minimal fallback create error for proposal ${proposal.id}: ${minimalCreateResponse.status} ${await minimalCreateResponse.text().catch(() => "")}`);
-          }
-        }
-        return NextResponse.json({ error: "PDF export failed after image and text fallback attempts." }, { status: 500 });
-      }
-
-      attempts++;
-    }
-
-    return NextResponse.json({ error: "PDF export failed after image and text fallback attempts." }, { status: 500 });
+    return NextResponse.json({
+      error: "PDF export failed after image and text fallback attempts.",
+      stages: failures,
+    }, { status: 500 });
   } catch (error: any) {
     console.error("PDF export error:", error?.message, error?.stack);
     return NextResponse.json({ error: error?.message ?? "Failed to export PDF" }, { status: 500 });

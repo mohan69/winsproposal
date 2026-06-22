@@ -205,7 +205,7 @@ export function getHydrogenTbeData(extractedData: any, tbeData: SevereServiceTbe
     for (const tag of tags) {
       cells[`${lineIndex}-${tag}`] =
         sanitizeHydrogenTbeCell(tbeData?.cells?.[`${lineIndex}-${tag}`]) ||
-        "Proposal-stage response mapped from RFP intelligence. Requires engineering validation before final submission; do not treat material, pressure class, packing, testing, or certification as certified unless confirmed by the RFP or approved knowledge source.";
+        "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, inspection plan, and project standards.";
     }
   }
   return { lineItems, tags, cells };
@@ -213,8 +213,8 @@ export function getHydrogenTbeData(extractedData: any, tbeData: SevereServiceTbe
 
 function sanitizeHydrogenTbeCell(value: string | undefined) {
   if (!value) return "";
-  if (/(ASTM\s*A216|WCB|Class\s*\d+|\b\d+(\.\d+)?\s*(inches|inch|in\.|")|bolted\s+bonnet|PTFE|graphite\s+packing|API\s*600|ISO\s*9001|certified|certification|monogram|preferred partner|unparalleled|exceeds expectations|proven track record)/i.test(value)) {
-    return "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, and project standards.";
+  if (/(ASTM\s*A216|WCB|Class\s*\d+|\b\d+(\.\d+)?\s*(inches|inch|in\.|")|bolted\s+bonnet|PTFE|graphite\s+packing|API\s*600|ISO\s*9001|certified|certification|monogram|preferred partner|unparalleled|exceeds expectations|proven track record|\bwe\s+provide\b|\bour\s+globe\s+control\s+valves\b|\bour\s+valves\s+undergo\b|\brigorous\s+testing\b|\bfeature\b)/i.test(value)) {
+    return "Requires engineering validation based on final RFP data, approved sizing calculation, line class, material specification, inspection plan, and project standards.";
   }
   return value;
 }
@@ -227,10 +227,11 @@ export function normalizeHydrogenTbeData(tbeData: SevereServiceTbeData | null | 
     for (let tagIndex = 0; tagIndex < HYDROGEN_TBE_TAGS.length; tagIndex++) {
       const tag = HYDROGEN_TBE_TAGS[tagIndex];
       const originalTag = originalTags[tagIndex] ?? tag;
-      cells[`${lineIndex}-${tag}`] =
+      const existing =
         tbeData.cells?.[`${lineIndex}-${tag}`] ??
         tbeData.cells?.[`${lineIndex}-${originalTag}`] ??
         "Proposal-stage response mapped; engineering validation required before final submission.";
+      cells[`${lineIndex}-${tag}`] = sanitizeHydrogenTbeCell(existing) || existing;
     }
   }
   return {
