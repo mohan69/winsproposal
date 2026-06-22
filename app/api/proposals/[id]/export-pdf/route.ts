@@ -162,17 +162,23 @@ export async function GET(request: Request, { params }: { params: { id: string }
     for (const attempt of attempts) {
       try {
         console.info(`Starting PDF render for proposal ${proposal.id}; mode=${attempt.mode}; includeDiagrams=${includeDiagrams}; htmlBytes=${Buffer.byteLength(attempt.html, "utf8")}`);
+        const allowPdfLibFallback = attempt.mode === "ultra-minimal-fallback";
         const result = await renderHtmlToPdf({
           stage: `proposal-${attempt.mode}`,
           html: attempt.html,
           footerTemplate,
           baseUrl: process.env.NEXTAUTH_URL || "",
+          disablePdfLibFallback: !allowPdfLibFallback,
         });
+        console.info(`PDF render succeeded for proposal ${proposal.id}; attempt=${attempt.mode}; renderer=${result.renderer}; stage=${result.stage}; bytes=${result.pdfBuffer.length}`);
         const filename = `${proposal.title.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50)}_Proposal.pdf`;
         return new NextResponse(result.pdfBuffer, {
           headers: {
             "Content-Type": "application/pdf",
             "Content-Disposition": `attachment; filename="${filename}"`,
+            "X-PDF-Render-Attempt": attempt.mode,
+            "X-PDF-Renderer": result.renderer,
+            "X-PDF-Renderer-Stage": result.stage,
           },
         });
       } catch (error: any) {

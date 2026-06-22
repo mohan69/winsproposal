@@ -113,6 +113,9 @@ async function verifyPdf(stage: string, sourceHtml: string) {
   assert(result.pdfBuffer.length > 1000, `${stage} PDF should not be empty`);
   assert(result.pdfBuffer.subarray(0, 4).toString("utf8") === "%PDF", `${stage} result should be a PDF`);
   console.log(`${stage} verified (${result.pdfBuffer.length} bytes via ${result.renderer}).`);
+  if (!/ultra-minimal|forced-chromium/i.test(stage)) {
+    assert(result.renderer === "local-chromium" || result.renderer === "abacus-html-to-pdf", `${stage} should use a full HTML renderer, not pdf-lib`);
+  }
 }
 
 async function verifyForcedFallbacks() {
@@ -124,7 +127,7 @@ async function verifyForcedFallbacks() {
     forceAbacusFailure: true,
     diagnostics: abacusDiagnostics,
   });
-  assert(chromiumResult.renderer === "local-chromium" || chromiumResult.renderer === "pdf-lib", "Forced Abacus failure should reach a non-Abacus renderer");
+  assert(chromiumResult.renderer === "local-chromium", "Forced Abacus failure should reach Chromium before pdf-lib");
   assert(abacusDiagnostics.rendererAttempted.includes("local-chromium"), "Forced Abacus failure should attempt Chromium");
 
   const chromiumDiagnostics = createPdfRenderDiagnostics();
@@ -148,6 +151,11 @@ async function verifyForcedFallbacks() {
   const pdfRoute = fs.readFileSync(path.join(process.cwd(), "app", "api", "proposals", "[id]", "export-pdf", "route.ts"), "utf8");
   assert(pdfRoute.includes('export const runtime = "nodejs"'), "Proposal PDF route must use Node.js runtime");
   assert(pdfRoute.includes("renderHtmlToPdf"), "Proposal PDF route must use the shared renderer");
+  assert(pdfRoute.includes("disablePdfLibFallback: !allowPdfLibFallback"), "Proposal PDF route must only allow pdf-lib on the final fallback attempt");
+  assert(pdfRoute.includes("X-PDF-Render-Attempt"), "Proposal PDF route should report the successful render attempt");
+
+  const pdfRenderer = fs.readFileSync(path.join(process.cwd(), "lib", "pdf-renderer.ts"), "utf8");
+  assert(!pdfRenderer.includes("WinsProposal PDF Export Fallback"), "pdf-lib fallback should not title normal exports as PDF Export Fallback");
 }
 
 async function main() {

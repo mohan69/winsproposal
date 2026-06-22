@@ -289,6 +289,12 @@ function sanitizePdfText(value: string) {
     .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
 }
 
+function extractHtmlTitle(html: string) {
+  const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)?.[1];
+  const title = sanitizePdfText(htmlToPlainText(h1 || "")).trim();
+  return title || "WinsProposal Proposal Export";
+}
+
 function wrapPdfText(text: string, maxChars: number) {
   const words = text.split(/\s+/);
   const lines: string[] = [];
@@ -337,7 +343,7 @@ async function renderWithPdfLib(options: PdfRenderOptions): Promise<PdfRenderRes
     lineCount = 0;
   };
 
-  page.drawText("WinsProposal PDF Export Fallback", {
+  page.drawText(extractHtmlTitle(options.html).slice(0, 90), {
     x: margin,
     y,
     size: 16,
