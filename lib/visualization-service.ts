@@ -1,3 +1,5 @@
+import { createOpenRouterChatCompletion, hasOpenRouterApiKey } from "@/lib/openrouter";
+
 export type VisualizationType =
   | "architecture"
   | "process_flow"
@@ -529,7 +531,7 @@ export async function generateVisualization(
     })
   );
 
-  if (!process.env.ABACUSAI_API_KEY) {
+  if (!hasOpenRouterApiKey()) {
     return getFallbackVisualization(context, type);
   }
 
@@ -559,21 +561,13 @@ ${context.content.substring(0, 3200)}
 Return Mermaid code now.`;
 
   try {
-    const llmResponse = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.25,
-        max_tokens: 1600,
-      }),
+    const llmResponse = await createOpenRouterChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.25,
+      max_tokens: 1600,
     });
 
     if (!llmResponse.ok) return getFallbackVisualization(context, type);

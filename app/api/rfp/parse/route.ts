@@ -4,9 +4,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
+import { createOpenRouterChatCompletion, getOpenRouterModel } from "@/lib/openrouter";
 
-const LARGE_MODEL = "gemini-2.5-pro";
-const SMALL_MODEL = "gpt-4o";
 const MAX_TEXT_CHARS = 120000;
 
 const systemPrompt = `You are an expert RFP analyst. Extract all requirements, line items, compliance needs, and evaluation criteria from this RFP/MR document.
@@ -34,19 +33,12 @@ Respond in JSON format:
 Respond with raw JSON only. Do not include code blocks, markdown, or any other formatting.`;
 
 async function callLLM(messages: any[], model: string) {
-  const response = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.3,
-      max_tokens: 8000,
-      response_format: { type: "json_object" },
-    }),
+  const response = await createOpenRouterChatCompletion({
+    model,
+    messages,
+    temperature: 0.3,
+    max_tokens: 8000,
+    response_format: { type: "json_object" },
   });
 
   if (!response?.ok) {
@@ -64,26 +56,18 @@ async function callLLM(messages: any[], model: string) {
 }
 
 async function extractTextFromPDF(base64: string, fileName: string): Promise<string> {
-  const response = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: LARGE_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "file", file: { filename: fileName, file_data: `data:application/pdf;base64,${base64}` } },
-            { type: "text", text: "Extract ALL text content from this PDF document. Return the complete text content preserving structure with headings and sections. Do not summarize - include everything." },
-          ],
-        },
-      ],
-      temperature: 0,
-      max_tokens: 16000,
-    }),
+  const response = await createOpenRouterChatCompletion({
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "file", file: { filename: fileName, file_data: `data:application/pdf;base64,${base64}` } },
+          { type: "text", text: "Extract ALL text content from this PDF document. Return the complete text content preserving structure with headings and sections. Do not summarize - include everything." },
+        ],
+      },
+    ],
+    temperature: 0,
+    max_tokens: 16000,
   });
 
   if (!response?.ok) {
@@ -126,6 +110,7 @@ export async function POST(request: Request) {
 
     const fileName = file?.name ?? "document";
     const fileType = fileName?.split(".")?.pop()?.toLowerCase() ?? "";
+    const model = getOpenRouterModel();
     let parsed: any;
 
     if (fileType === "pdf") {
@@ -134,7 +119,7 @@ export async function POST(request: Request) {
 
       // Try sending full PDF to large-context model first
       try {
-        console.log(`[RFP Parse] Attempting full PDF analysis with ${LARGE_MODEL}...`);
+        console.log(`[RFP Parse] Attempting full PDF analysis with OpenRouter model ${model}...`);
         const messages = [
           {
             role: "user",
@@ -144,14 +129,14 @@ export async function POST(request: Request) {
             ],
           },
         ];
-        parsed = await callLLM(messages, LARGE_MODEL);
+        parsed = await callLLM(messages, model);
       } catch (err: any) {
         // Fallback: extract text first, then analyze in chunks
         console.log(`[RFP Parse] Full PDF failed, falling back to text extraction + chunked analysis...`);
         const extractedText = await extractTextFromPDF(base64, fileName);
         const truncated = extractedText?.substring(0, MAX_TEXT_CHARS) ?? "";
         const messages = [{ role: "user", content: `${systemPrompt}\n\nHere is the content from the RFP document:\n\n${truncated}` }];
-        parsed = await callLLM(messages, SMALL_MODEL);
+        parsed = await callLLM(messages, model);
       }
     } else {
       let textContent = "";
@@ -166,7 +151,7 @@ export async function POST(request: Request) {
       }
       const truncated = textContent?.substring(0, MAX_TEXT_CHARS) ?? "";
       const messages = [{ role: "user", content: `${systemPrompt}\n\nHere is the content from the file:\n\n${truncated}` }];
-      parsed = await callLLM(messages, SMALL_MODEL);
+      parsed = await callLLM(messages, model);
     }
 
     await prisma.rfpUpload.update({

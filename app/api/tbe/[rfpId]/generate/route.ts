@@ -5,25 +5,18 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { getTbeTagsForTemplate } from "@/lib/templates";
+import { createOpenRouterChatCompletion } from "@/lib/openrouter";
 
 const DEFAULT_TAGS = ["Material", "Pressure Rating", "Size", "End Connection", "Body Type", "Bonnet Type", "Packing", "Testing", "Certification"];
 
 async function callLLM(messages: any[], retries = 2): Promise<string> {
   for (let i = 0; i <= retries; i++) {
     try {
-      const res = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          messages,
-          temperature: 0.3,
-          max_tokens: 4000,
-          response_format: { type: "json_object" },
-        }),
+      const res = await createOpenRouterChatCompletion({
+        messages,
+        temperature: 0.3,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
       });
       if (!res.ok) {
         const errText = await res.text().catch(() => "");

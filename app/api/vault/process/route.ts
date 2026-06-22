@@ -4,9 +4,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
+import { createOpenRouterChatCompletion, getOpenRouterModel } from "@/lib/openrouter";
 
-const LARGE_MODEL = "gemini-2.5-pro";
-const SMALL_MODEL = "gpt-4o";
 const MAX_TEXT_CHARS = 120000;
 
 const vaultPrompt = `You are an expert document analyzer specializing in industrial proposals, RFPs, and technical documentation for manufacturing and EPC industries.
@@ -36,20 +35,13 @@ Respond in JSON format:
 }
 Respond with raw JSON only. Do not include code blocks, markdown, or any other formatting.`;
 
-async function callLLMWithJSON(messages: any[], model: string = SMALL_MODEL) {
-  const response = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.3,
-      max_tokens: 8000,
-      response_format: { type: "json_object" },
-    }),
+async function callLLMWithJSON(messages: any[], model: string) {
+  const response = await createOpenRouterChatCompletion({
+    model,
+    messages,
+    temperature: 0.3,
+    max_tokens: 8000,
+    response_format: { type: "json_object" },
   });
 
   if (!response?.ok) {
@@ -60,26 +52,18 @@ async function callLLMWithJSON(messages: any[], model: string = SMALL_MODEL) {
 }
 
 async function extractTextFromPDF(base64: string, fileName: string): Promise<string> {
-  const response = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: LARGE_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "file", file: { filename: fileName, file_data: `data:application/pdf;base64,${base64}` } },
-            { type: "text", text: "Extract ALL text content from this PDF document. Return the complete text content preserving structure with headings and sections. Do not summarize - include everything." },
-          ],
-        },
-      ],
-      temperature: 0,
-      max_tokens: 16000,
-    }),
+  const response = await createOpenRouterChatCompletion({
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "file", file: { filename: fileName, file_data: `data:application/pdf;base64,${base64}` } },
+          { type: "text", text: "Extract ALL text content from this PDF document. Return the complete text content preserving structure with headings and sections. Do not summarize - include everything." },
+        ],
+      },
+    ],
+    temperature: 0,
+    max_tokens: 16000,
   });
 
   if (!response?.ok) {
@@ -164,6 +148,7 @@ export async function POST(request: Request) {
 
     const fileName = file?.name ?? "document";
     const fileType = fileName?.split(".")?.pop()?.toLowerCase() ?? "";
+    const model = getOpenRouterModel();
 
     if (fileType === "pdf") {
       const buffer = await file.arrayBuffer();
@@ -171,7 +156,7 @@ export async function POST(request: Request) {
 
       // Try sending full PDF to large-context model first
       try {
-        console.log(`[Vault Process] Attempting full PDF analysis with ${LARGE_MODEL}...`);
+        console.log(`[Vault Process] Attempting full PDF analysis with OpenRouter model ${model}...`);
         const messages = [
           {
             role: "user",
@@ -181,7 +166,7 @@ export async function POST(request: Request) {
             ],
           },
         ];
-        const response = await callLLMWithJSON(messages, LARGE_MODEL);
+        const response = await callLLMWithJSON(messages, model);
         return await processLLMResponse(response, documentId);
       } catch (err: any) {
         // Fallback: extract text first, then analyze
@@ -189,7 +174,7 @@ export async function POST(request: Request) {
         const extractedText = await extractTextFromPDF(base64, fileName);
         const truncated = extractedText?.substring(0, MAX_TEXT_CHARS) ?? "";
         const messages = [{ role: "user", content: `${vaultPrompt}\n\nHere is the content from the document:\n\n${truncated}` }];
-        const response = await callLLMWithJSON(messages, SMALL_MODEL);
+        const response = await callLLMWithJSON(messages, model);
         return await processLLMResponse(response, documentId);
       }
     }
@@ -217,7 +202,7 @@ export async function POST(request: Request) {
 
     const truncated = fileContent?.substring(0, MAX_TEXT_CHARS) ?? "";
     const messages = [{ role: "user", content: `${vaultPrompt}\n\nHere is the content from the file:\n\n${truncated}` }];
-    const response = await callLLMWithJSON(messages, SMALL_MODEL);
+    const response = await callLLMWithJSON(messages, model);
     return await processLLMResponse(response, documentId);
   } catch (error: any) {
     console.error("Vault process error:", error);

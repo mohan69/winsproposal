@@ -13,6 +13,7 @@ import {
   selectRelevantSevereServiceVaultItems,
 } from "@/lib/severe-service-intelligence";
 import { buildEngineeringArtifact } from "@/lib/engineering-artifacts";
+import { createOpenRouterChatCompletion } from "@/lib/openrouter";
 
 function formatSectionInstructions(inference: ReturnType<typeof inferRfpIntelligence>, fallback: string) {
   if (!inference.isSevereServiceValve) return fallback;
@@ -244,23 +245,15 @@ ${textEntriesContext || "No text entries available."}
 ${!vaultContext && !textEntriesContext ? "No vault content available. Generate all content from scratch." : ""}`;
 
     // Stream the response
-    const llmResponse = await fetch("https://apps.abacus.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.ABACUSAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemMessage },
-          { role: "user", content: userMessage },
-        ],
-        temperature: 0.4,
-        max_tokens: 16000,
-        stream: true,
-        response_format: { type: "json_object" },
-      }),
+    const llmResponse = await createOpenRouterChatCompletion({
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.4,
+      max_tokens: 16000,
+      stream: true,
+      response_format: { type: "json_object" },
     });
 
     if (!llmResponse?.ok) {

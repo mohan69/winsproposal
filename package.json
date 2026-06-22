@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "tsx scripts/verify-openrouter-config.ts",
     "seed:enterprise-demo": "tsx --require dotenv/config scripts/seed-enterprise-demo.ts",
     "seed:imi-cci-demo": "tsx --require dotenv/config scripts/seed-imi-cci-demo.ts",
     "check:severe-service-demo": "tsx scripts/check-severe-service-proposal-automation.ts",
