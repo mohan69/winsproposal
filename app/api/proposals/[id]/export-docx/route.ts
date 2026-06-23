@@ -296,11 +296,11 @@ function docxLabelParagraph(label: string, brandColor: string): Paragraph {
 }
 
 function buildKpiDashboardDocx(brandColor: string): Table {
-  const metrics = [
-    ["Bid Value", "Rs 48.6 Cr", "92% visibility"],
-    ["Turnaround", "4.2 days", "38% faster"],
-    ["Compliance", "96%", "clauses mapped"],
-    ["Vault Reuse", "64%", "approved content"],
+  const metrics: [string, string, string][] = [
+    ["Bid Value", "To be validated", "Pending commercial input"],
+    ["Turnaround", "To be validated", "Pending cycle analysis"],
+    ["Compliance", "To be validated", "Pending clause mapping"],
+    ["Vault Reuse", "To be validated", "Pending source audit"],
   ];
   const cells = metrics.map(([label, value, note]) => docxCell([
     new Paragraph({ children: [docxText(label.toUpperCase(), { bold: true, color: "6b7280", size: 16 })], spacing: { after: 50 } }),
@@ -312,6 +312,11 @@ function buildKpiDashboardDocx(brandColor: string): Table {
     rows: [
       new TableRow({ children: [cells[0], cells[1]] }),
       new TableRow({ children: [cells[2], cells[3]] }),
+      new TableRow({ children: [
+        docxCell([new Paragraph({ children: [
+          docxText("Subject to final sizing, material selection, actuator/accessory scope, testing, documentation, delivery terms, and commercial validation. Not a final commercial offer.", { color: "92400e", size: 16, italics: true }),
+        ]})], { width: 9600, shading: "FFFBEB" }),
+      ]}),
     ],
     width: { size: 9600, type: WidthType.DXA },
   });

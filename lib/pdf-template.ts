@@ -269,20 +269,23 @@ function buildFlowVisual(steps: string[], brandColor: string): string {
 
 function buildKpiDashboardVisual(brandColor: string): string {
   const metrics = [
-    ["Bid Value", "₹48.6 Cr", "92% visibility"],
-    ["Turnaround", "4.2 days", "38% faster"],
-    ["Compliance", "96%", "clauses mapped"],
-    ["Vault Reuse", "64%", "approved content"],
+    ["Bid Value", "To be validated", "Pending commercial input"],
+    ["Turnaround", "To be validated", "Pending cycle analysis"],
+    ["Compliance", "To be validated", "Pending clause mapping"],
+    ["Vault Reuse", "To be validated", "Pending source audit"],
   ];
   return `<div class="diagram-kpi-grid">
     ${metrics.map(([label, value, note]) => `
       <div class="diagram-kpi-card">
         <div class="diagram-kpi-label">${label}</div>
         <div class="diagram-kpi-value" style="color:${brandColor};">${value}</div>
-        <div class="diagram-kpi-bar"><span style="width:${label === "Compliance" ? "96" : label === "Bid Value" ? "92" : label === "Vault Reuse" ? "64" : "78"}%;background:${brandColor};"></span></div>
+        <div class="diagram-kpi-bar"><span style="width:50%;background:${brandColor};"></span></div>
         <div class="diagram-kpi-note">${note}</div>
       </div>
     `).join("")}
+    <div style="grid-column:1/-1;font-size:8px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;margin-top:4px;">
+      Subject to final sizing, material selection, actuator/accessory scope, testing, documentation, delivery terms, and commercial validation. Not a final commercial offer.
+    </div>
   </div>`;
 }
 
@@ -372,16 +375,16 @@ function buildExecutiveRoiCoverHtml(data: PdfData, brandColor: string, safeAppli
     }
     return fallback;
   };
-  const hoursSaved = read(["Engineering hours saved", "engineeringHoursSaved"], intelligence.applicationId === "hydrogen-process-control" ? "28" : "32");
-  const reuse = read(["Reusable engineering content", "proposalReuse"], intelligence.applicationId === "hydrogen-process-control" ? "58%" : "64%");
-  const cycleReduction = read(["Proposal turnaround reduction", "cycleTimeReduction"], intelligence.applicationId === "hydrogen-process-control" ? "44%" : "50%");
+  const hoursSaved = read(["Engineering hours saved", "engineeringHoursSaved"], "To be validated");
+  const reuse = read(["Reusable engineering content", "proposalReuse"], "To be validated");
+  const cycleReduction = read(["Proposal turnaround reduction", "cycleTimeReduction"], "To be validated");
   const roiRows = [
-    ["Proposal cycle time", "5.0 days", "2.8 days", `${cycleReduction} faster first-pass proposal`],
-    ["Engineering hours saved", "64 hrs/bid", `${Math.max(18, 64 - (Number.parseInt(hoursSaved, 10) || 28))} hrs/bid`, `${hoursSaved} hours avoided`],
-    ["Compliance review time saved", "14 hrs", "6 hrs", "8 hours avoided"],
-    ["Proposal reuse", "20% ad hoc", reuse, "Controlled knowledge reuse"],
-    ["Bid throughput improvement", "8 bids/month", "13 bids/month", "62% higher capacity"],
-    ["Estimated annual productivity savings", "Manual baseline", "INR 34-42 lakh", "Engineering/compliance effort equivalent"],
+    ["Proposal cycle time", "To be validated", "To be validated", `${cycleReduction}`],
+    ["Engineering hours saved", "To be validated", "To be validated", `${hoursSaved}`],
+    ["Compliance review time saved", "To be validated", "To be validated", "To be validated"],
+    ["Proposal reuse", "To be validated", reuse, "Controlled knowledge reuse"],
+    ["Bid throughput improvement", "To be validated", "To be validated", "To be validated"],
+    ["Estimated annual productivity savings", "Manual baseline", "To be validated", "Engineering/compliance effort equivalent"],
   ];
   return `
   <div class="page roi-page">
@@ -510,14 +513,14 @@ export function generateProposalHtml(data: PdfData): string {
     ...(safeComplianceItems.length > 0 ? [{ label: `${safeSections.length + 1}. Compliance Checklist`, href: "#compliance-checklist" }] : []),
     ...(safeTbeData ? [{ label: "Appendix A. Detailed Technical Bid Evaluation (TBE)", href: "#technical-bid-evaluation" }] : []),
   ];
-  const tocItems = tocEntries
-    .map(
-      (entry) =>
-        `<a href="${entry.href}" class="toc-link">
-          <span>${entry.label}</span>
+const tocItems = tocEntries
+  .map(
+    (entry) =>
+      `<a href="${entry.href}" class="toc-link">
+          <span class="toc-label">${entry.label}</span>
         </a>`
-    )
-    .join("");
+  )
+  .join("");
   const roiCoverHtml = severeServiceExport ? buildExecutiveRoiCoverHtml(data, brandColor, safeApplication) : "";
   const vaultCategoryHtml = severeServiceExport
     ? `<div class="vault-category-grid">
@@ -552,20 +555,21 @@ export function generateProposalHtml(data: PdfData): string {
 <head>
   <meta charset="UTF-8">
   <style>
-    @page { size: A4; margin: 0; }
+    @page { size: A4; margin: 0 0 18mm 0; }
+    @page cover { size: A4; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Inter, Helvetica, sans-serif; color: #1f2937; font-size:10.8pt; line-height:1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .page { width: 210mm; min-height: 297mm; padding: 20mm 21mm 24mm 21mm; position: relative; page-break-after: always; page-break-inside: avoid; overflow: visible; }
-    .body-page { height:auto; min-height:297mm; overflow:visible; page-break-after:auto; page-break-inside:auto; }
+    .page { min-height: 279mm; padding: 20mm 21mm 6mm 21mm; position: relative; page-break-after: always; page-break-inside: avoid; overflow: visible; }
+    .body-page { height:auto; min-height:279mm; overflow:visible; page-break-after:auto; page-break-inside:auto; }
     .page:last-child { page-break-after: auto; }
-    .cover-page { background: linear-gradient(135deg, ${brandColor} 0%, ${brandColor}dd 50%, ${brandColor}bb 100%); color: white; display: flex; flex-direction: column; justify-content: center; padding: 35mm 30mm; min-height: 297mm; }
+    .cover-page { page: cover; background: linear-gradient(135deg, ${brandColor} 0%, ${brandColor}dd 50%, ${brandColor}bb 100%); color: white; display: flex; flex-direction: column; justify-content: center; padding: 35mm 30mm; min-height: 297mm; }
     .cover-page .accent-line { width: 80px; height: 4px; background: #10b981; margin-bottom: 30px; }
     .cover-page h1 { font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
     .cover-page .subtitle { font-size: 14px; opacity: 0.85; margin-bottom: 40px; line-height: 1.5; }
     .cover-meta { display: flex; gap: 30px; margin-top: auto; padding-top: 40px; border-top: 1px solid rgba(255,255,255,0.2); }
     .cover-meta div { font-size: 11px; }
     .cover-meta .label { opacity: 0.6; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-    .roi-page { background:#f8fafc; }
+    .roi-page { page: roi; background:#f8fafc; }
     .roi-kicker { color:${brandColor}; text-transform:uppercase; letter-spacing:.8px; font-size:10px; font-weight:900; }
     .roi-page h1 { color:#0f172a; font-size:28px; margin:8px 0 6px; }
     .roi-subtitle { color:#475569; font-size:12px; margin-bottom:18px; }
@@ -584,8 +588,10 @@ export function generateProposalHtml(data: PdfData): string {
     .vault-category-grid span { display:block; color:#047857; font-size:8.5px; line-height:1.35; }
     .toc-page { }
     .toc-title { font-size: 20px; font-weight: 700; color: ${brandColor}; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid ${brandColor}; }
-    .toc-link { display:block; padding:7px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
-    .toc-link span:first-child { max-width:150mm; }
+    .toc-link { display:block; padding:7px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; overflow:hidden; }
+    .toc-label { float:left; max-width:150mm; }
+    .toc-link::after { content:target-counter(attr(href), page); float:right; font-weight:700; color:${brandColor}; margin-left:8px; }
+    .toc-link:hover { color:${brandColor}; }
     .section-page { }
     .proposal-section { break-inside:avoid; page-break-inside:avoid; break-before:auto; page-break-before:auto; margin-bottom:28px; padding-bottom:16px; border-bottom:1px solid #e5e7eb; overflow:visible; }
     .section-start-block { break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
