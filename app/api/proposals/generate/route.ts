@@ -206,6 +206,7 @@ Engineering safety requirement:
 - Preserve RFP tag numbers exactly. Do not replace extracted tags with generic demo tags.
 - Do not invent pressure class, valve size, material, packing, leakage class, testing, certification, ISO status, or manufacturer qualification claims. If a value is missing, write "Requires engineering validation".
 - Avoid unsupported sales superlatives such as "unparalleled expertise", "preferred partner", "proven track record", and "exceeds expectations". Use evidence-bound, professional language.
+- WinsProposal is the proposal intelligence platform, not the valve OEM. Do not use first-person plural ("we manufacture", "our valves", "our expertise") to describe valve manufacturing capability. Refer to the bidder/supplier in the third person: "the bidder's severe-service valve solution", "the proposed severe-service valve package", "the OEM's approved severe-service valve capability".
 
 ${sectionInstructions}
 

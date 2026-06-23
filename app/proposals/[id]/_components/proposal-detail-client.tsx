@@ -553,7 +553,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
             <div className="flex items-center gap-3">
               <Database className="w-5 h-5 text-emerald-600 shrink-0" />
               <span className="text-sm text-emerald-800">
-                Generated using <strong>{vaultSections?.length ?? proposal?.vaultSectionsUsed ?? 0}</strong> vault sections from <strong>{proposal?.vaultDocumentsUsed ?? 0}</strong> documents
+                Generated using <strong>{Math.max(vaultSections?.length ?? 0, proposal?.vaultSectionsUsed ?? 0)}</strong> vault sections from <strong>{proposal?.vaultDocumentsUsed ?? 0}</strong> documents
               </span>
             </div>
             {rfpIntelligence.isSevereServiceValve && (
@@ -569,7 +569,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
             {/* Knowledge Vault Sources Used */}
             {(() => {
               const sourceNames = [...new Set(vaultSections.map((s: ProposalSection) => s.sourceName).filter(Boolean))] as string[];
-              const vaultSectionsCount = vaultSections?.length ?? proposal?.vaultSectionsUsed ?? 0;
+              const vaultSectionsCount = Math.max(vaultSections?.length ?? 0, proposal?.vaultSectionsUsed ?? 0);
               const totalSections = proposal?.sections?.length ?? 0;
               if (sourceNames.length === 0) return null;
               return (

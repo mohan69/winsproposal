@@ -1,8 +1,8 @@
-export const SEVERE_SERVICE_DISCLAIMER =
+﻿export const SEVERE_SERVICE_DISCLAIMER =
   "Preliminary proposal-stage engineering estimate. Final sizing/design must be validated by qualified engineers using company-approved tools and standards.";
 
 export const HYDROGEN_EXECUTIVE_ROI_TEXT =
-  "WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. For this hydrogen control valve package, the demo productivity model indicates a reduction in first-pass proposal cycle time from 5.0 days to 2.8 days, engineering effort reduction from 64 hours to 36 hours, and compliance review effort reduction from 14 hours to 6 hours. Estimated annual productivity savings are shown as INR 34-42 lakh based on the demo baseline. These figures are indicative proposal-stage estimates and should be validated against the customer’s actual baseline.";
+  "WinsProposal converts severe-service proposal work into a managed revenue workflow by combining RFP extraction, reusable knowledge, compliance mapping, TBE response automation, drawing intelligence, and export-ready governance evidence. Productivity and financial impact values should be validated against the customer's actual proposal baseline, engineering effort, compliance review effort, bid volume, and commercial process data. Demo productivity model: pending customer baseline validation.";
 
 export const HYDROGEN_COMMERCIAL_SUMMARY_TEXT = `| Tag | Service | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis |
 |---|---|---:|---|---|---|

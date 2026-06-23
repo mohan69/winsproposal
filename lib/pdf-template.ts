@@ -114,23 +114,9 @@ function getCoverBranding(data: PdfData, templateIndustry: string, severeService
   };
 }
 
-function getCoverBidReadinessScore(data: PdfData, severeServiceExport: boolean) {
-  if (/hydrogen/i.test(`${data.title} ${data.templateType} ${data.industry} ${JSON.stringify(data.extractedData ?? {})}`)) return 78;
-  const extracted = data.extractedData ?? {};
-  const candidates = [
-    extracted?.bidReadinessScore,
-    extracted?.bidScore,
-    extracted?.dashboard?.bidReadinessScore,
-    extracted?.dashboard?.["Bid Readiness Score"],
-    extracted?.bidNoBidScoring?.finalScore,
-    extracted?.bidNoBidScore,
-  ];
-  for (const candidate of candidates) {
-    const numeric = Number.parseInt(String(candidate ?? "").replace(/[^0-9]/g, ""), 10);
-    if (Number.isFinite(numeric) && numeric > 0) return Math.min(100, numeric);
-  }
-  if (severeServiceExport && data.winScore < 60) return 78;
-  return Math.max(0, Math.min(100, Math.round(data.winScore || 78)));
+function getCoverBidReadinessScore(data: PdfData) {
+  if (data.winScore == null) return null;
+  return Math.max(0, Math.min(100, Math.round(data.winScore)));
 }
 
 function markdownInlineToHtml(value: unknown): string {
@@ -454,8 +440,8 @@ export function generateProposalHtml(data: PdfData): string {
   const safeCoverIndustry = escapeHtml(coverBranding.industry);
   const safeCustomerExample = escapeHtml(coverBranding.customerExample);
   const safeStatus = escapeHtml(coverBranding.status);
-  const bidReadinessScore = getCoverBidReadinessScore(data, severeServiceExport);
-  const bidReadinessColor = bidReadinessScore >= 80 ? "#6ee7b7" : bidReadinessScore >= 60 ? "#fcd34d" : "#fca5a5";
+  const bidReadinessScore = getCoverBidReadinessScore(data);
+  const bidReadinessColor = bidReadinessScore == null ? "#9ca3af" : bidReadinessScore >= 80 ? "#6ee7b7" : bidReadinessScore >= 60 ? "#fcd34d" : "#fca5a5";
   const vaultCategories = getSevereServiceVaultSourceCategories(intelligence.applicationId);
   const safeSections = data.sections.map((section) => ({
     ...section,
@@ -538,7 +524,7 @@ const tocItems = tocEntries
             <div class="section-heading section-heading-block">
               <div class="section-number">${i + 1}</div>
               <h2 class="section-title">${s.sectionTitle}</h2>
-              ${s.sourceType === "vault" ? `<span class="source-badge">${s.sourceName ? `From Vault: ${escapeHtml(s.sourceName)}` : 'From Vault'}</span>` : ''}
+              ${s.sourceType === "vault" ? `<span class="source-badge">${s.sourceName ? `From Vault: ${escapeHtml(s.sourceName)}` : 'From Knowledge Vault'}</span>` : `<span class="source-badge-ai">AI-assisted draft</span>`}
             </div>
             <div class="section-intro section-body">
               ${s.contentHtml}
@@ -588,10 +574,13 @@ const tocItems = tocEntries
     .vault-category-grid span { display:block; color:#047857; font-size:8.5px; line-height:1.35; }
     .toc-page { }
     .toc-title { font-size: 20px; font-weight: 700; color: ${brandColor}; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 3px solid ${brandColor}; }
-    .toc-link { display:block; padding:7px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; overflow:hidden; }
-    .toc-label { float:left; max-width:150mm; }
-    .toc-link::after { content:target-counter(attr(href), page); float:right; font-weight:700; color:${brandColor}; margin-left:8px; }
-    .toc-link:hover { color:${brandColor}; }
+    .toc-link { display:block; padding:7px 0; border-bottom:1px dotted #d1d5db; text-decoration:none; color:#374151; font-size:12px; }
+    .toc-label { display:block; }
+    .vault-page-title { font-size: 16px; font-weight: 700; color: #065f46; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #86efac; }
+    .vault-source-card { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 14px; break-inside:avoid; page-break-inside:avoid; margin-bottom:8px; }
+    .vault-source-card strong { display:block; color:#065f46; font-size:11px; margin-bottom:2px; }
+    .vault-source-card span { display:block; color:#047857; font-size:9.5px; line-height:1.35; }
+    .vault-source-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
     .section-page { }
     .proposal-section { break-inside:avoid; page-break-inside:avoid; break-before:auto; page-break-before:auto; margin-bottom:28px; padding-bottom:16px; border-bottom:1px solid #e5e7eb; overflow:visible; }
     .section-start-block { break-inside: avoid; page-break-inside: avoid; break-before:auto; page-break-before:auto; }
@@ -607,6 +596,7 @@ const tocItems = tocEntries
     .content-table th { background:#eff6ff; color:#111827; text-align:left; padding:7px 8px; border:1px solid #cbd5e1; font-weight:800; line-height:1.25; }
     .content-table td { padding:7px 8px; border:1px solid #d1d5db; vertical-align:top; line-height:1.35; }
     .source-badge { background:#d1fae5; color:#065f46; font-size:9px; padding:2px 8px; border-radius:10px; white-space:nowrap; }
+    .source-badge-ai { background:#eff6ff; color:#1e40af; font-size:9px; padding:2px 8px; border-radius:10px; white-space:nowrap; }
     .section-intro { break-after: avoid; page-break-after: avoid; orphans: 3; widows: 3; }
     .section-page p { text-align: left; margin: 0 0 10px 0; line-height: 1.55; }
     .section-page ul { text-align: left; }
@@ -726,7 +716,7 @@ const tocItems = tocEntries
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:30px;">
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
         <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Bid Readiness Score</div>
-        <div style="font-size:28px;font-weight:800;color:${bidReadinessColor};">${bidReadinessScore}/100</div>
+        <div style="font-size:28px;font-weight:800;color:${bidReadinessColor};">${bidReadinessScore != null ? bidReadinessScore + "/100" : "Not scored"}</div>
       </div>
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
         <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Proposal Sections</div>
@@ -758,14 +748,27 @@ const tocItems = tocEntries
   <div class="page toc-page">
     <div class="toc-title">Table of Contents</div>
     ${tocItems}
-    <div style="margin-top:30px;padding:16px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
-      <div style="font-size:11px;color:#065f46;">
-        <strong>Vault Coverage:</strong> ${data.vaultSectionsUsed} of ${proposalSectionCount} proposal sections sourced from knowledge vault (${data.vaultDocumentsUsed} documents referenced)
-      </div>
-      ${vaultCategoryHtml}
-    </div>
-
   </div>
+
+  ${(() => {
+    const vaultSourceNames = [...new Set(safeSections.filter(s => s.sourceType === "vault").map(s => s.sourceName).filter(Boolean))] as string[];
+    if (vaultSourceNames.length === 0 && !severeServiceExport) return "";
+    const vaultSectionsCount = data.vaultSectionsUsed;
+    const totalSectionCount = proposalSectionCount;
+    const vaultCardItems = vaultSourceNames.map(n => `<div class="vault-source-card"><strong>${escapeHtml(n)}</strong><span>Knowledge Vault source document</span></div>`).join("");
+    return `<!-- KNOWLEDGE VAULT SOURCES -->
+  <div class="page" style="page-break-before:always;break-before:page;">
+    <div class="vault-page-title">Knowledge Vault Sources Used</div>
+    <div style="font-size:11px;color:#065f46;margin-bottom:16px;">
+      <strong>Vault Coverage:</strong> ${vaultSectionsCount} of ${totalSectionCount} proposal sections sourced from Knowledge Vault (${data.vaultDocumentsUsed} documents referenced).
+    </div>
+    ${vaultCardItems ? `<div class="vault-source-grid">${vaultCardItems}</div>` : ""}
+    ${vaultCategoryHtml}
+    <div style="margin-top:16px;font-size:9px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px;">
+      Source documents are synthetic demo reference content created for proposal demonstration. WinsProposal is the proposal intelligence platform, not the valve OEM. No confidential proprietary data is included unless explicitly uploaded by the customer.
+    </div>
+  </div>`;
+  })()}
 
   <!-- CONTENT SECTIONS -->
   <div class="page body-page">

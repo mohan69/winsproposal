@@ -947,7 +947,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const neutralDemoBranding = severeServiceExport && /cci severe service solutions|imi cci/i.test(companyName);
     const preparedBy = neutralDemoBranding ? "WinsProposal Demo Engine" : companyName;
     const preparedFor = severeServiceExport ? "Demo Customer / Severe-Service Valve OEM" : "Customer organization";
-    const docxBidReadinessScore = hydrogenExport ? 78 : severeServiceExport && scoreResult.total < 60 ? 78 : scoreResult.total;
+    const docxBidReadinessScore = scoreResult.total;
 
     // Company & Date
     docChildren.push(new Paragraph({
