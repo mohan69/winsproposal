@@ -9,10 +9,12 @@ export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = (session?.user as any)?.id;
+    const userEmail = (session?.user as any)?.email;
 
     const { searchParams } = new URL(request?.url ?? "");
     const search = searchParams?.get("search") ?? "";
-    const userId = (session?.user as any)?.id;
+    console.log(`[Proposals GET] userId=${userId} email=${userEmail} search="${search}"`);
 
     const where: any = { userId };
     if (search) {
@@ -28,9 +30,10 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
+    console.log(`[Proposals GET] Found ${proposals.length} proposals for userId=${userId}`);
     return NextResponse.json(proposals ?? []);
   } catch (error: any) {
-    console.error("Proposals fetch error:", error);
+    console.error("[Proposals GET] Error:", error?.message, error?.stack);
     return NextResponse.json({ error: "Failed to fetch proposals" }, { status: 500 });
   }
 }

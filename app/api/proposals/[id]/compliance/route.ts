@@ -9,14 +9,16 @@ export async function GET(request: Request, { params }: { params: { id: string }
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = (session?.user as any)?.id;
+    console.log(`[Compliance GET] userId=${userId} proposalId=${params?.id}`);
 
     const checklist = await prisma.complianceChecklist.findUnique({
       where: { proposalId: params?.id },
     });
     return NextResponse.json(checklist);
   } catch (err: any) {
-    console.error("Compliance GET error:", err);
-    return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
+    console.error("[Compliance GET] Error:", err?.message, err?.stack);
+    return NextResponse.json({ error: "Failed to fetch compliance checklist" }, { status: 500 });
   }
 }
 

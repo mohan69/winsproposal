@@ -117,12 +117,13 @@ export function UploadRfpClient() {
 
     setUploading(true);
     setFileName(file?.name ?? "");
+    let step = "initializing";
     try {
       let cloud_storage_path: string | null = null;
 
+      // Step 1: Cloud storage upload (optional, failure is non-blocking)
+      step = "cloud_storage";
       try {
-        // Cloud storage is useful for audit trail, but parsing can still proceed from
-        // the selected browser file if storage upload is unavailable in a demo.
         const presignedRes = await fetch("/api/upload/presigned", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -131,13 +132,12 @@ export function UploadRfpClient() {
         const presignedData = await presignedRes.json().catch(() => ({}));
         if (!presignedRes?.ok) throw new Error(presignedData?.error ?? "Failed to get upload URL");
 
-          // Upload directly to cloud storage
-          const uploadUrl = presignedData?.uploadUrl ?? "";
-          cloud_storage_path = presignedData?.cloud_storage_path ?? null;
-          const uploadHeaders: Record<string, string> = {
-            "Content-Type": file.type || "application/octet-stream",
-            ...(presignedData?.uploadHeaders ?? {}),
-          };
+        const uploadUrl = presignedData?.uploadUrl ?? "";
+        cloud_storage_path = presignedData?.cloud_storage_path ?? null;
+        const uploadHeaders: Record<string, string> = {
+          "Content-Type": file.type || "application/octet-stream",
+          ...(presignedData?.uploadHeaders ?? {}),
+        };
         if (uploadUrl?.includes("content-disposition")) {
           uploadHeaders["Content-Disposition"] = "attachment";
         }
@@ -148,33 +148,42 @@ export function UploadRfpClient() {
         cloud_storage_path = null;
       }
 
-      // Create RFP record
+      // Step 2: Create RFP record
+      step = "create_rfp";
       const createRes = await fetch("/api/rfp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: file.name, fileType: ext, cloudStoragePath: cloud_storage_path, isPublic: false }),
       });
       const rfp = await createRes.json().catch(() => ({}));
-      if (!createRes?.ok) throw new Error("Failed to create RFP record");
+      if (!createRes?.ok) {
+        throw new Error(`POST /api/rfp returned ${createRes?.status}: ${rfp?.error ?? "Failed to create RFP record"}`);
+      }
       setRfpId(rfp?.id ?? null);
 
       toast.success("File uploaded! Parsing with AI...");
       setUploading(false);
       setParsing(true);
 
-      // Parse RFP
+      // Step 3: Parse RFP with AI
+      step = "parse_rfp";
       const formData = new FormData();
       formData.append("file", file);
       formData.append("rfpId", rfp?.id ?? "");
       const parseRes = await fetch("/api/rfp/parse", { method: "POST", body: formData });
       const parseData = await parseRes.json().catch(() => ({}));
-      if (!parseRes?.ok) throw new Error(parseData?.error ?? "Parsing failed");
+      if (!parseRes?.ok) {
+        const serverError = parseData?.error ?? `HTTP ${parseRes?.status}`;
+        throw new Error(`POST /api/rfp/parse failed: ${serverError}`);
+      }
 
       setExtractedData(parseData?.extractedData ?? null);
       setRfpIntelligence(inferRfpIntelligence(parseData?.extractedData ?? null));
       toast.success("RFP parsed successfully!");
     } catch (err: any) {
-      toast.error(err?.message ?? "Upload failed");
+      const message = err?.message ?? "Upload failed";
+      console.error(`RFP upload failed at step "${step}":`, message);
+      toast.error(`RFP upload failed at "${step}": ${message}`, { duration: 8000 });
     } finally {
       setUploading(false);
       setParsing(false);

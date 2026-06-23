@@ -83,11 +83,23 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const userId = (session.user as any)?.id;
+    const userEmail = (session.user as any)?.email;
 
     const formData = await request.formData();
     const file = formData?.get("file") as File | null;
     const rfpId = formData?.get("rfpId") as string | null;
     if (!file || !rfpId) return NextResponse.json({ error: "file and rfpId required" }, { status: 400 });
+
+    const fileName = file?.name ?? "document";
+    const fileType = fileName?.split(".")?.pop()?.toLowerCase() ?? "";
+    const fileSize = file?.size ?? 0;
+    const fileMime = file?.type ?? "";
+    const model = getOpenRouterModel();
+
+    console.log(`[RFP Parse] Starting:`, JSON.stringify({
+      rfpId, userId, email: userEmail, fileName, fileType, fileSize, fileMime, model,
+      timestamp: new Date().toISOString(),
+    }));
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -105,12 +117,10 @@ export async function POST(request: Request) {
     });
 
     if (!rfp) {
+      console.warn(`[RFP Parse] RFP not found: rfpId=${rfpId} userId=${userId}`);
       return NextResponse.json({ error: "RFP not found or access denied" }, { status: 404 });
     }
 
-    const fileName = file?.name ?? "document";
-    const fileType = fileName?.split(".")?.pop()?.toLowerCase() ?? "";
-    const model = getOpenRouterModel();
     let parsed: any;
 
     if (fileType === "pdf") {
@@ -159,9 +169,10 @@ export async function POST(request: Request) {
       data: { extractedData: parsed },
     });
 
+    console.log(`[RFP Parse] Success: rfpId=${rfpId} fileName=${fileName} fileSize=${fileSize}`);
     return NextResponse.json({ rfpId, extractedData: parsed });
   } catch (error: any) {
-    console.error("RFP parse error:", error);
+    console.error("[RFP Parse] Error:", error?.message, error?.stack?.substring(0, 500));
     return NextResponse.json({ error: `RFP parsing failed: ${error?.message ?? "Unknown error"}` }, { status: 500 });
   }
 }

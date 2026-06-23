@@ -9,9 +9,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = (session?.user as any)?.id;
+    const userEmail = (session?.user as any)?.email;
+
+    console.log(`[Proposal GET] userId=${userId} email=${userEmail} proposalId=${params?.id}`);
 
     const proposal = await prisma.proposal.findUnique({
-      where: { id: params?.id, userId: (session?.user as any)?.id },
+      where: { id: params?.id, userId },
       include: {
         sections: { orderBy: { orderIndex: "asc" } },
         rfp: true,
@@ -22,7 +26,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     if (!proposal) return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     return NextResponse.json(proposal);
   } catch (error: any) {
-    console.error("Proposal fetch error:", error);
+    console.error("[Proposal GET] Error:", error?.message, error?.stack);
     return NextResponse.json({ error: "Failed to fetch proposal" }, { status: 500 });
   }
 }

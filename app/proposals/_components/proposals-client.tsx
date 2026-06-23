@@ -34,9 +34,16 @@ export function ProposalsClient() {
   const fetchProposals = useCallback(async (q: string = "") => {
     try {
       const res = await fetch(`/api/proposals${q ? `?search=${encodeURIComponent(q)}` : ""}`);
+      if (!res?.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(`GET /api/proposals returned ${res?.status}: ${errData?.error ?? "Unknown error"}`);
+      }
       const data = await res.json().catch(() => []);
       setProposals(Array.isArray(data) ? data : []);
-    } catch { toast.error("Failed to load proposals"); } finally { setLoading(false); }
+    } catch (err: any) {
+      console.error("Proposals fetch error:", err?.message);
+      toast.error(err?.message ?? "Failed to load proposals", { duration: 8000 });
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchProposals(); }, [fetchProposals]);
