@@ -217,8 +217,32 @@ export function VaultClient() {
       if (uploadUrl?.includes("content-disposition")) {
         uploadHeaders["Content-Disposition"] = "attachment";
       }
-      const storageRes = await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
-      if (!storageRes?.ok) throw new Error("Failed to upload file to storage");
+      try {
+        const storageRes = await fetch(uploadUrl, { method: "PUT", body: file, headers: uploadHeaders });
+        if (!storageRes?.ok) throw new Error(`Storage responded ${storageRes?.status}`);
+      } catch (storageErr: any) {
+        let uploadHost = "unknown";
+        try { uploadHost = new URL(uploadUrl).hostname; } catch {}
+        const isCorsOrNetwork = !storageErr?.status && (
+          storageErr?.message?.includes("fetch") ||
+          storageErr instanceof TypeError ||
+          storageErr?.name === "TypeError"
+        );
+        console.error(JSON.stringify({
+          stepName: "Azure Blob PUT",
+          uploadHost,
+          fileName: file.name,
+          fileType: ext,
+          fileSize: file.size,
+          error: storageErr?.message ?? String(storageErr),
+        }));
+        if (isCorsOrNetwork) {
+          throw new Error(
+            `File upload to storage failed. Please verify Azure Blob CORS allows this domain.`
+          );
+        }
+        throw new Error(`File upload to storage failed: ${storageErr?.message ?? "Unknown storage error"}`);
+      }
 
       // Create vault document record
       const createRes = await fetch("/api/vault", {
@@ -275,6 +299,10 @@ export function VaultClient() {
           toast.error(message);
         } else if (message?.toLowerCase()?.includes("empty") || message?.toLowerCase()?.includes("no sections")) {
           toast.warning("Document uploaded but no text could be extracted. Try a different format or use Text Entries.");
+        } else if (message?.includes("Azure Blob CORS")) {
+          toast.error(message);
+        } else if (message?.includes("storage failed") || message?.includes("Storage responded")) {
+          toast.error(`Storage upload failed: ${message}. The document was not saved.`);
         } else {
           toast.error(message);
         }
