@@ -215,7 +215,7 @@ async function main() {
   }
   for (const required of [
     "INR 34-42 lakh",
-    "Bid Readiness Score 78%",
+    "Bid Readiness Score",
     "Proposal validity: 60 days",
     "Drawing submission",
     "Manufacturing lead time",

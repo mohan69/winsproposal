@@ -789,7 +789,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                   <h3 className="font-display font-semibold">{section?.sectionTitle}</h3>
                   {section?.sourceType === "vault" || section?.sourceName != null ? (
                     <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                      <Database className="w-3 h-3 mr-1" /> From Vault
+                      <Database className="w-3 h-3 mr-1" /> {section?.sourceName ? `From Vault: ${section.sourceName}` : "From Knowledge Vault"}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">

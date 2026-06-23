@@ -23,16 +23,6 @@ export const HYDROGEN_DELIVERY_TIMELINE_TEXT = `| Milestone | Indicative Timelin
 | Shipping readiness | 3 weeks after test clearance | Subject to release note and documentation acceptance |
 | Final MDR/data book | With dispatch / post-final inspection | Includes MTC, PMI, test records, certificates, and deviation register |`;
 
-export const HYDROGEN_BID_NO_BID_TEXT = `| Bid Dimension | Score | Rationale |
-|---|---:|---|
-| Technical fit | 82/100 | Strong severe-service fit; hydrogen compatibility notes, leakage/sealing response, and datasheet summary covered. |
-| Commercial attractiveness | 78/100 | Bid value and reuse are attractive; final pricing, exclusions, and payment terms still require commercial review. |
-| Strategic fit | 84/100 | Hydrogen and severe-service proposal capability aligns with strategic industrial growth themes. |
-| Margin risk | 70/100 | Specialty trim, accessories, testing, and documentation can affect margin until final scope freeze. |
-| Delivery risk | 74/100 | Schedule is feasible if drawing review, long-lead items, and witness points are confirmed early. |
-| Bid Readiness Score | 78% | Recommendation: Bid with engineering and commercial validation. |
-
-Bid governance note: Bid Readiness Score 78%. Score is a proposal-stage decision aid, not an approval record.`;
 
 export const HYDROGEN_EXECUTIVE_DASHBOARD_TEXT = `| Executive Metric | Demo Value | Management Readout |
 |---|---:|---|
@@ -266,7 +256,6 @@ ${SEVERE_SERVICE_DISCLAIMER}`;
   if (/commercial summary/i.test(sectionTitle)) return getHydrogenCommercialSummaryText(extractedData);
   if (/project timeline|delivery schedule|timeline.*delivery/i.test(sectionTitle)) return HYDROGEN_DELIVERY_TIMELINE_TEXT;
   if (/technical bid evaluation summary/i.test(sectionTitle)) return getHydrogenTbeSummaryText(extractedData);
-  if (/bid\s*\/\s*no-bid|bid.*scoring/i.test(sectionTitle)) return HYDROGEN_BID_NO_BID_TEXT;
   if (/executive dashboard/i.test(sectionTitle)) return HYDROGEN_EXECUTIVE_DASHBOARD_TEXT;
   return null;
 }
@@ -801,8 +790,12 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
   let overallWinScore: number | undefined;
   if (scoreInput) {
     try {
+      const finalCount = SEVERE_SERVICE_SECTION_SPECS.length;
+      const scoreSections = [...sections];
+      while (scoreSections.length < finalCount) { scoreSections.push({ content: "", sourceType: "generated", sectionTitle: "" }); }
+      scoreSections.length = finalCount;
       overallWinScore = calculateWinScore({
-        sections,
+        sections: scoreSections,
         vaultSectionsUsed: scoreInput.vaultSectionsUsed,
         vaultDocumentsUsed: scoreInput.vaultDocumentsUsed,
         templateType: scoreInput.templateType,
