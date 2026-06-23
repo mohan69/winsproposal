@@ -10,6 +10,7 @@ interface PdfSection {
   sectionTitle: string;
   content: string;
   sourceType: string;
+  sourceName?: string | null;
   diagramSvgUrl?: string; // mermaid.ink URL for the diagram
   visualizationType?: VisualizationType;
   id?: string;
@@ -534,7 +535,7 @@ export function generateProposalHtml(data: PdfData): string {
             <div class="section-heading section-heading-block">
               <div class="section-number">${i + 1}</div>
               <h2 class="section-title">${s.sectionTitle}</h2>
-              ${s.sourceType === "vault" ? '<span class="source-badge">From Vault</span>' : ''}
+              ${s.sourceType === "vault" ? `<span class="source-badge">${s.sourceName ? `From Vault: ${escapeHtml(s.sourceName)}` : 'From Vault'}</span>` : ''}
             </div>
             <div class="section-intro section-body">
               ${s.contentHtml}

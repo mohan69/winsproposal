@@ -16,11 +16,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const body = await request.json();
-    const { title, content, tags, industry } = body ?? {};
+    const { title, content, documentType, tags, industry } = body ?? {};
 
     const updateData: any = {};
     if (title !== undefined) updateData.title = title.trim();
     if (content !== undefined) updateData.content = content.trim();
+    if (documentType !== undefined) updateData.documentType = documentType || null;
     if (tags !== undefined) updateData.tags = Array.isArray(tags) ? tags.filter(Boolean) : [];
     if (industry !== undefined && ["Valves", "Pumps", "EPC", "General"].includes(industry)) updateData.industry = industry;
 

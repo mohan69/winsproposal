@@ -12,12 +12,15 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { tags, industry } = body ?? {};
+    const { tags, industry, status, errorReason, documentType } = body ?? {};
     const doc = await prisma.vaultDocument.update({
       where: { id: params?.id, userId: (session?.user as any)?.id },
       data: {
         ...(tags !== undefined ? { tags } : {}),
         ...(industry !== undefined ? { industry } : {}),
+        ...(status !== undefined ? { status } : {}),
+        ...(errorReason !== undefined ? { errorReason } : {}),
+        ...(documentType !== undefined ? { documentType } : {}),
       },
       include: { sections: true },
     });

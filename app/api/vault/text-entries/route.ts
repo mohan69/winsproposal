@@ -13,6 +13,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") ?? "";
+    const documentType = searchParams.get("documentType") ?? "";
 
     const where: any = { userId };
     if (search) {
@@ -21,6 +22,9 @@ export async function GET(request: Request) {
         { content: { contains: search, mode: "insensitive" } },
         { tags: { hasSome: [search] } },
       ];
+    }
+    if (documentType) {
+      where.documentType = documentType;
     }
 
     const entries = await prisma.vaultTextEntry.findMany({
@@ -41,7 +45,7 @@ export async function POST(request: Request) {
     const userId = (session.user as any)?.id;
 
     const body = await request.json();
-    const { title, content, tags, industry } = body ?? {};
+    const { title, content, documentType, tags, industry } = body ?? {};
     if (!title?.trim() || !content?.trim()) {
       return NextResponse.json({ error: "Title and content are required" }, { status: 400 });
     }
@@ -51,6 +55,7 @@ export async function POST(request: Request) {
         userId,
         title: title.trim(),
         content: content.trim(),
+        documentType: documentType ?? null,
         tags: Array.isArray(tags) ? tags.filter(Boolean) : [],
         industry: ["Valves", "Pumps", "EPC", "General"].includes(industry) ? industry : "General",
       },

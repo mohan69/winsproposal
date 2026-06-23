@@ -12,6 +12,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request?.url ?? "");
     const search = searchParams?.get("search") ?? "";
+    const documentType = searchParams?.get("documentType") ?? "";
     const userId = (session?.user as any)?.id;
 
     const where: any = { userId };
@@ -21,6 +22,9 @@ export async function GET(request: Request) {
         { tags: { hasSome: [search] } },
         { sections: { some: { content: { contains: search, mode: "insensitive" } } } },
       ];
+    }
+    if (documentType) {
+      where.documentType = documentType;
     }
 
     const documents = await prisma.vaultDocument.findMany({
@@ -56,6 +60,7 @@ export async function POST(request: Request) {
         cloudStoragePath: cloudStoragePath ?? null,
         isPublic: isPublic ?? false,
         documentType: documentType ?? null,
+        status: "uploaded",
       },
     });
 

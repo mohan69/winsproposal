@@ -5,27 +5,90 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Archive, Upload, Search, FileText, Trash2, Edit2, Check, X,
   ChevronDown, ChevronUp, Loader2, AlertCircle, Tag, Calendar, Image as ImageIcon,
+  Clock, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const DOCUMENT_TYPES = [
-  "Technical Specification",
-  "Datasheet",
+  "RFQ / Tender Document",
+  "Customer Technical Specification",
+  "Customer Commercial Terms",
+  "Bid Instructions",
+  "Approved Vendor List",
+  "Project Datasheet",
+  "Line List",
+  "Valve Schedule",
+  "Control Valve Datasheet",
+  "Severe Service Datasheet",
+  "Actuator Datasheet",
+  "Positioner / Accessories Datasheet",
+  "Instrument Datasheet",
+  "Valve Sizing Calculation",
+  "Noise Calculation",
+  "Cavitation / Flashing Analysis",
+  "Material Specification",
+  "Trim / Seat / Plug Details",
+  "ITP / QAP",
+  "Test Procedure",
+  "Painting / Coating Specification",
+  "Welding / NDE Specification",
   "GA Drawing",
+  "Sectional Drawing",
+  "Assembly Drawing",
+  "Hook-up Drawing",
   "P&ID",
   "Process Flow Diagram",
-  "Architecture Drawing",
-  "Product Image/Photo",
+  "Instrument Loop Diagram",
   "Past Proposal",
-  "Certificate",
+  "Price List",
+  "Cost Sheet",
+  "Discount Policy",
+  "Delivery Schedule",
+  "Payment Terms",
+  "Warranty Terms",
+  "Deviation / Exception List",
+  "Compliance Matrix",
+  "Technical Clarification",
+  "Commercial Clarification",
+  "ISO Certificate",
+  "PED / CE Certificate",
+  "ATEX / SIL Certificate",
+  "Material Test Certificate",
+  "Hydro Test Certificate",
+  "Calibration Certificate",
+  "Inspection Report",
+  "Third Party Inspection Document",
+  "Case Study",
+  "Installed Base Reference",
+  "Competitor Document",
+  "Product Brochure",
+  "Product Manual",
+  "Application Note",
+  "Troubleshooting Note",
+  "Lessons Learned",
+  "Product Image / Photo",
+  "Architecture Drawing",
   "Other",
 ] as const;
+
+const DOCUMENT_TYPE_GROUPS: { label: string; items: string[] }[] = [
+  { label: "Bid & Tender", items: ["RFQ / Tender Document", "Customer Technical Specification", "Customer Commercial Terms", "Bid Instructions", "Approved Vendor List"] },
+  { label: "Datasheets & Schedules", items: ["Project Datasheet", "Line List", "Valve Schedule", "Control Valve Datasheet", "Severe Service Datasheet", "Actuator Datasheet", "Positioner / Accessories Datasheet", "Instrument Datasheet"] },
+  { label: "Calculations & Analysis", items: ["Valve Sizing Calculation", "Noise Calculation", "Cavitation / Flashing Analysis"] },
+  { label: "Specifications", items: ["Material Specification", "Trim / Seat / Plug Details", "ITP / QAP", "Test Procedure", "Painting / Coating Specification", "Welding / NDE Specification"] },
+  { label: "Drawings", items: ["GA Drawing", "Sectional Drawing", "Assembly Drawing", "Hook-up Drawing", "P&ID", "Process Flow Diagram", "Instrument Loop Diagram"] },
+  { label: "Commercial", items: ["Past Proposal", "Price List", "Cost Sheet", "Discount Policy", "Delivery Schedule", "Payment Terms", "Warranty Terms", "Deviation / Exception List"] },
+  { label: "Compliance & Quality", items: ["Compliance Matrix", "Technical Clarification", "Commercial Clarification", "ISO Certificate", "PED / CE Certificate", "ATEX / SIL Certificate", "Material Test Certificate", "Hydro Test Certificate", "Calibration Certificate"] },
+  { label: "Inspection", items: ["Inspection Report", "Third Party Inspection Document"] },
+  { label: "Reference", items: ["Case Study", "Installed Base Reference", "Competitor Document", "Product Brochure", "Product Manual", "Application Note", "Troubleshooting Note", "Lessons Learned"] },
+  { label: "Other", items: ["Product Image / Photo", "Architecture Drawing", "Other"] },
+];
 
 const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "svg", "webp"];
 
@@ -36,6 +99,8 @@ interface VaultDoc {
   documentType: string | null;
   industry: string;
   tags: string[];
+  status: string;
+  errorReason: string | null;
   extractedSectionsCount: number;
   uploadedAt: string;
   cloudStoragePath: string | null;
@@ -51,6 +116,24 @@ interface VaultSection {
   industryTags: string[];
 }
 
+function StatusBadge({ status, errorReason }: { status: string; errorReason?: string | null }) {
+  const config: Record<string, { color: string; icon: any; label: string }> = {
+    uploaded: { color: "bg-blue-100 text-blue-700 border-blue-200", icon: Clock, label: "Uploaded" },
+    parsing: { color: "bg-amber-100 text-amber-700 border-amber-200", icon: Loader2, label: "Parsing" },
+    parsed: { color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2, label: "Parsed" },
+    parse_failed: { color: "bg-rose-100 text-rose-700 border-rose-200", icon: AlertTriangle, label: "Parse Failed" },
+    indexed: { color: "bg-violet-100 text-violet-700 border-violet-200", icon: CheckCircle2, label: "Indexed" },
+  };
+  const c = config[status] ?? { color: "bg-gray-100 text-gray-700 border-gray-200", icon: AlertCircle, label: status };
+  const Icon = c.icon;
+  return (
+    <span title={errorReason ?? ""} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${c.color}`}>
+      <Icon className={`w-3 h-3 ${status === "parsing" ? "animate-spin" : ""}`} />
+      {c.label}
+    </span>
+  );
+}
+
 export function VaultClient() {
   const [documents, setDocuments] = useState<VaultDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,12 +147,16 @@ export function VaultClient() {
   const [sectionEditValues, setSectionEditValues] = useState<any>({});
   const [deleteTarget, setDeleteTarget] = useState<{ type: string; id: string; docId?: string } | null>(null);
   const [selectedDocType, setSelectedDocType] = useState<string>("");
+  const [searchDocType, setSearchDocType] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchTimeout = useRef<any>(null);
 
-  const fetchDocuments = useCallback(async (q: string = "") => {
+  const fetchDocuments = useCallback(async (q: string = "", dt: string = "") => {
     try {
-      const res = await fetch(`/api/vault${q ? `?search=${encodeURIComponent(q)}` : ""}`);
+      const params = new URLSearchParams();
+      if (q) params.set("search", q);
+      if (dt) params.set("documentType", dt);
+      const res = await fetch(`/api/vault${params.toString() ? `?${params.toString()}` : ""}`);
       const data = await res.json().catch(() => []);
       setDocuments(Array.isArray(data) ? data : []);
     } catch {
@@ -84,7 +171,14 @@ export function VaultClient() {
   function handleSearchChange(val: string) {
     setSearch(val);
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => fetchDocuments(val), 400);
+    searchTimeout.current = setTimeout(() => fetchDocuments(val, searchDocType), 400);
+  }
+
+  function handleDocTypeFilterChange(val: string) {
+    const dt = val === "all" ? "" : val;
+    setSearchDocType(dt);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => fetchDocuments(search, dt), 400);
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -93,7 +187,7 @@ export function VaultClient() {
     const ext = file?.name?.split(".")?.pop()?.toLowerCase() ?? "";
     const allSupported = ["pdf", "docx", "txt", ...IMAGE_EXTENSIONS];
     if (!allSupported.includes(ext)) {
-      toast.error("Supported formats: PDF, DOCX, TXT, JPG, PNG, SVG");
+      toast.error("Excel/CSV parsing is not yet supported. Supported: PDF, DOCX, TXT, JPG, PNG, SVG, WebP");
       return;
     }
     const isImage = IMAGE_EXTENSIONS.includes(ext);
@@ -145,11 +239,12 @@ export function VaultClient() {
         // Images don't need AI processing
         toast.success("Image uploaded successfully!");
         setSelectedDocType("");
-        fetchDocuments(search);
+        fetchDocuments(search, searchDocType);
       } else {
         toast.success("File uploaded! Processing with AI...");
         setUploading(false);
         setProcessing(doc?.id ?? null);
+        fetchDocuments(search, searchDocType);
 
         // Process with AI
         const formData = new FormData();
@@ -157,14 +252,35 @@ export function VaultClient() {
         formData.append("documentId", doc?.id ?? "");
         const processRes = await fetch("/api/vault/process", { method: "POST", body: formData });
         const processData = await processRes.json().catch(() => ({}));
-        if (!processRes?.ok) throw new Error(processData?.error ?? "AI processing failed");
+        if (!processRes?.ok) {
+          // Document record already saved with status; show the error
+          const errorMsg = processData?.error ?? "AI processing failed";
+          if (processData?.detail) {
+            toast.warning(processData.detail);
+          } else {
+            toast.warning(errorMsg);
+          }
+          fetchDocuments(search, searchDocType);
+          return;
+        }
 
         toast.success(`Document processed! ${processData?.extractedSectionsCount ?? 0} sections extracted.`);
-        fetchDocuments(search);
+        fetchDocuments(search, searchDocType);
       }
-    } catch (err: any) {
-      toast.error(err?.message ?? "Upload failed");
-    } finally {
+      } catch (err: any) {
+        const message = err?.message ?? "Upload failed";
+        if (message?.toLowerCase()?.includes("scanned") || message?.toLowerCase()?.includes("ocr")) {
+          toast.error("Scanned PDF detected: OCR is not supported. Upload a text-based PDF or add knowledge manually via Text Entries.");
+        } else if (message?.toLowerCase()?.includes("unsupported")) {
+          toast.error(message);
+        } else if (message?.toLowerCase()?.includes("empty") || message?.toLowerCase()?.includes("no sections")) {
+          toast.warning("Document uploaded but no text could be extracted. Try a different format or use Text Entries.");
+        } else {
+          toast.error(message);
+        }
+        // Fetch docs again to show updated status
+        fetchDocuments(search, searchDocType);
+      } finally {
       setUploading(false);
       setProcessing(null);
       if (fileInputRef?.current) fileInputRef.current.value = "";
@@ -227,13 +343,34 @@ export function VaultClient() {
           <Input placeholder="Search documents, tags, content..." value={search ?? ""} onChange={(e: any) => handleSearchChange(e?.target?.value ?? "")} className="pl-10" />
         </div>
         <div className="flex items-center gap-2">
+          <Select value={searchDocType} onValueChange={handleDocTypeFilterChange}>
+            <SelectTrigger className="w-52 h-9">
+              <SelectValue placeholder="Filter by type..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {DOCUMENT_TYPE_GROUPS.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel className="text-xs font-semibold text-muted-foreground px-2 py-1">{group.label}</SelectLabel>
+                  {group.items.map((dt) => (
+                    <SelectItem key={dt} value={dt}>{dt}</SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={selectedDocType} onValueChange={setSelectedDocType}>
             <SelectTrigger className="w-48 h-9">
               <SelectValue placeholder="Document type..." />
             </SelectTrigger>
             <SelectContent>
-              {DOCUMENT_TYPES.map((dt) => (
-                <SelectItem key={dt} value={dt}>{dt}</SelectItem>
+              {DOCUMENT_TYPE_GROUPS.map((group) => (
+                <SelectGroup key={group.label}>
+                  <SelectLabel className="text-xs font-semibold text-muted-foreground px-2 py-1">{group.label}</SelectLabel>
+                  {group.items.map((dt) => (
+                    <SelectItem key={dt} value={dt}>{dt}</SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>
@@ -283,6 +420,7 @@ export function VaultClient() {
                         <FileText className="w-4 h-4 text-primary shrink-0" />
                       )}
                       <span className="font-medium truncate">{doc?.filename}</span>
+                      <StatusBadge status={doc?.status ?? "uploaded"} errorReason={doc?.errorReason} />
                       <Badge variant="secondary" className="text-xs">{doc?.industry}</Badge>
                       {doc?.documentType && <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200">{doc.documentType}</Badge>}
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -314,11 +452,19 @@ export function VaultClient() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        {(doc?.tags ?? [])?.map((tag: string, i: number) => (
-                          <Badge key={i} variant="outline" className="text-xs"><Tag className="w-3 h-3 mr-1" />{tag}</Badge>
-                        ))}
-                        <span className="text-xs text-muted-foreground">{doc?.extractedSectionsCount ?? 0} sections</span>
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {(doc?.tags ?? [])?.map((tag: string, i: number) => (
+                            <Badge key={i} variant="outline" className="text-xs"><Tag className="w-3 h-3 mr-1" />{tag}</Badge>
+                          ))}
+                          <span className="text-xs text-muted-foreground">{doc?.extractedSectionsCount ?? 0} sections</span>
+                        </div>
+                        {doc?.status === "parse_failed" && doc?.errorReason && (
+                          <p className="text-xs text-rose-600 flex items-center gap-1 mt-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            {doc.errorReason}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

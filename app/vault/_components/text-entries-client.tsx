@@ -14,10 +14,25 @@ import {
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
+const TEXT_ENTRY_DOC_TYPES = [
+  "Past Proposal",
+  "Technical Specification",
+  "Compliance Matrix",
+  "Price List",
+  "Delivery Schedule",
+  "Payment Terms",
+  "Warranty Terms",
+  "Case Study",
+  "Lessons Learned",
+  "Product Brochure",
+  "Other",
+] as const;
+
 interface TextEntry {
   id: string;
   title: string;
   content: string;
+  documentType: string | null;
   tags: string[];
   industry: string;
   createdAt: string;
@@ -32,7 +47,7 @@ export function TextEntriesClient() {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [form, setForm] = useState({ title: "", content: "", tags: "", industry: "General" });
+  const [form, setForm] = useState({ title: "", content: "", documentType: "", tags: "", industry: "General" });
   const searchTimeout = useRef<any>(null);
 
   const fetchEntries = useCallback(async (q: string = "") => {
@@ -56,7 +71,7 @@ export function TextEntriesClient() {
   }
 
   function resetForm() {
-    setForm({ title: "", content: "", tags: "", industry: "General" });
+    setForm({ title: "", content: "", documentType: "", tags: "", industry: "General" });
     setShowForm(false);
     setEditingId(null);
   }
@@ -66,6 +81,7 @@ export function TextEntriesClient() {
     setForm({
       title: entry.title,
       content: entry.content,
+      documentType: entry.documentType ?? "",
       tags: (entry.tags ?? []).join(", "),
       industry: entry.industry,
     });
@@ -82,6 +98,7 @@ export function TextEntriesClient() {
       const payload = {
         title: form.title.trim(),
         content: form.content.trim(),
+        documentType: form.documentType || null,
         tags: form.tags.split(",").map((t: string) => t.trim()).filter(Boolean),
         industry: form.industry,
       };
@@ -160,6 +177,18 @@ export function TextEntriesClient() {
                 <Label className="text-sm font-medium">Tags</Label>
                 <Input value={form.tags} onChange={(e: any) => setForm((p) => ({ ...p, tags: e?.target?.value ?? "" }))} placeholder="tag1, tag2, tag3" className="mt-1" />
               </div>
+              <div className="w-48">
+                <Label className="text-sm font-medium">Document Type</Label>
+                <Select value={form.documentType} onValueChange={(v: string) => setForm((p) => ({ ...p, documentType: v === "none" ? "" : v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select type..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {TEXT_ENTRY_DOC_TYPES.map((dt) => (
+                      <SelectItem key={dt} value={dt}>{dt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="w-40">
                 <Label className="text-sm font-medium">Industry</Label>
                 <Select value={form.industry} onValueChange={(v: string) => setForm((p) => ({ ...p, industry: v }))}>
@@ -212,6 +241,7 @@ export function TextEntriesClient() {
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <FileText className="w-4 h-4 text-primary shrink-0" />
                       <span className="font-medium">{entry.title}</span>
+                      {entry.documentType && <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200">{entry.documentType}</Badge>}
                       <Badge variant="secondary" className="text-xs">{entry.industry}</Badge>
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Calendar className="w-3 h-3" />

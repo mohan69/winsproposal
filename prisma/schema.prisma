@@ -81,6 +81,8 @@ model VaultDocument {
   documentType          String?   @map("document_type")
   cloudStoragePath      String?   @map("cloud_storage_path")
   isPublic              Boolean   @default(false) @map("is_public")
+  status                String    @default("uploaded")
+  errorReason           String?   @map("error_reason")
   industry              Industry  @default(General)
   tags                  String[]  @default([])
   extractedSectionsCount Int      @default(0) @map("extracted_sections_count")
@@ -161,6 +163,7 @@ model ProposalSection {
   content      String
   sourceType   SourceType @default(generated) @map("source_type")
   sourceId     String?    @map("source_id")
+  sourceName   String?    @map("source_name")
   orderIndex   Int        @default(0) @map("order_index")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
@@ -172,14 +175,15 @@ model ProposalSection {
 }
 
 model VaultTextEntry {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  title     String
-  content   String
-  tags      String[] @default([])
-  industry  Industry @default(General)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  title        String
+  content      String
+  documentType String?  @map("document_type")
+  tags         String[] @default([])
+  industry     Industry @default(General)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -175,7 +175,14 @@ INFERRED PROPOSAL CONTEXT:
 - Inference confidence: ${inference.confidence}
 - Detection keywords: ${inference.keywords.join(", ") || "none"}
 
-You have access to past proposal sections from the knowledge vault AND reusable text entries. Use them when relevant, and generate new content where no good vault match exists.
+Use the following approved Knowledge Vault context. Cite the source document name internally. Do not invent specifications not present in RFQ or Knowledge Vault.
+
+You have access to past proposal sections and reusable text entries from the Knowledge Vault. Follow these rules:
+1. Prefer vault content over AI-generated content when the RFP request matches vault content.
+2. If vault content covers a complete section, use it directly (sourceType: "vault") with sourceId and sourceName.
+3. If vault content partially covers a section, combine it with AI content but flag the section as "vault".
+4. Do NOT invent specifications, compliance items, certifications, or customer references that are not present in the RFP or Knowledge Vault.
+5. If no relevant vault content exists for a section, generate it and mark sourceType as "generated".
 
 Vault matching priority:
 1. Exact keyword matches (highest priority)
@@ -338,6 +345,7 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                           content: sec?.content ?? "",
                           sourceType: sec?.sourceType === "vault" ? "vault" : "generated",
                           sourceId: sec?.sourceId ?? null,
+                          sourceName: sec?.sourceName ?? null,
                           orderIndex: i,
                         },
                       });
@@ -436,19 +444,20 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
 
               for (let i = 0; i < (sections?.length ?? 0); i++) {
                 const sec = sections[i];
-                await prisma.proposalSection.create({
-                  data: {
-                    proposalId: proposal?.id,
-                    sectionTitle: sec?.title ?? "Untitled",
-                    content: sec?.content ?? "",
-                    sourceType: sec?.sourceType === "vault" ? "vault" : "generated",
-                    sourceId: sec?.sourceId ?? null,
-                    orderIndex: i,
-                  },
-                });
-              }
+                  await prisma.proposalSection.create({
+                    data: {
+                      proposalId: proposal?.id,
+                      sectionTitle: sec?.title ?? "Untitled",
+                      content: sec?.content ?? "",
+                      sourceType: sec?.sourceType === "vault" ? "vault" : "generated",
+                      sourceId: sec?.sourceId ?? null,
+                      sourceName: sec?.sourceName ?? null,
+                      orderIndex: i,
+                    },
+                  });
+                }
 
-              if (selectedTemplate || inference.isSevereServiceValve) {
+                if (selectedTemplate || inference.isSevereServiceValve) {
                 const complianceItems = inference.isSevereServiceValve ? inference.complianceItems : selectedTemplate!.complianceItems;
                 const checklistItems = complianceItems.map((item) => ({
                   id: item.id, label: item.label, standard: item.standard, checked: false,

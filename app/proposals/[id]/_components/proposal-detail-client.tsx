@@ -39,6 +39,7 @@ interface ProposalSection {
   content: string;
   sourceType: string;
   sourceId: string | null;
+  sourceName: string | null;
   orderIndex: number;
 }
 
@@ -560,6 +561,24 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 ))}
               </div>
             )}
+            {/* Knowledge Vault Sources Used */}
+            {(() => {
+              const sourceNames = [...new Set(vaultSections.map((s: ProposalSection) => s.sourceName).filter(Boolean))] as string[];
+              if (sourceNames.length === 0) return null;
+              return (
+                <div className="mt-4 border-t border-emerald-200 pt-3">
+                  <div className="text-xs font-semibold text-emerald-900 mb-2">Knowledge Vault Sources Used</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sourceNames.map((name) => (
+                      <span key={name} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2.5 py-0.5 text-xs text-emerald-800">
+                        <Database className="w-3 h-3" />
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}

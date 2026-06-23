@@ -11,6 +11,7 @@
     "test": "tsx scripts/verify-openrouter-config.ts && tsx scripts/verify-export-diagram-fallback.ts && tsx --require dotenv/config scripts/verify-pdf-health.ts",
     "seed:enterprise-demo": "tsx --require dotenv/config scripts/seed-enterprise-demo.ts",
     "seed:imi-cci-demo": "tsx --require dotenv/config scripts/seed-imi-cci-demo.ts",
+    "seed:imi-severe-service-demo": "tsx --require dotenv/config scripts/seed-imi-demo.ts",
     "check:severe-service-demo": "tsx scripts/check-severe-service-proposal-automation.ts",
     "verify:proposal-docx-export": "tsx scripts/verify-proposal-docx-export.ts",
     "verify:proposal-print-readiness": "tsx scripts/verify-proposal-print-readiness.ts",

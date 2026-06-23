@@ -121,6 +121,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         sectionTitle: s.sectionTitle,
         content: s.content,
         sourceType: s.sourceType,
+        sourceName: s.sourceName,
         visualizationType: getBestVisualizationType(s.sectionTitle, s.content, {
           templateType: proposal.templateType,
           industry: proposal.industry,
