@@ -966,7 +966,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     docChildren.push(new Paragraph({
       children: [
         new TextRun({ text: "Bid Readiness Score: ", bold: true, size: 26, color: brandColor, font: FONT_HEADING }),
-        new TextRun({ text: `${docxBidReadinessScore}%`, bold: true, size: 26, color: scoreColor, font: FONT_HEADING }),
+        new TextRun({ text: `${docxBidReadinessScore}/100`, bold: true, size: 26, color: scoreColor, font: FONT_HEADING }),
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 200 },
@@ -1069,7 +1069,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       // Source badge (clean text, no emoji)
       const sourceLabel = section.sourceType === "vault"
         ? (section.sourceName ? `[From Knowledge Vault: ${section.sourceName}]` : "[From Knowledge Vault]")
-        : "[AI Generated]";
+        : "[AI-assisted draft]";
       docChildren.push(new Paragraph({
         children: [
           new TextRun({

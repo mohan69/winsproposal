@@ -720,7 +720,7 @@ export function generateProposalHtml(data: PdfData): string {
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:30px;">
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
         <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Bid Readiness Score</div>
-        <div style="font-size:28px;font-weight:800;color:${bidReadinessColor};">${bidReadinessScore}%</div>
+        <div style="font-size:28px;font-weight:800;color:${bidReadinessColor};">${bidReadinessScore}/100</div>
       </div>
       <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px 20px;">
         <div style="font-size:9px;opacity:0.7;text-transform:uppercase;letter-spacing:1px;">Proposal Sections</div>

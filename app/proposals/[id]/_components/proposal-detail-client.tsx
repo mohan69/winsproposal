@@ -477,13 +477,18 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {/* Win Score badge */}
-          {winScore && (
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-semibold ${getScoreBg(winScore.score)}`}>
+          {/* Bid Readiness Score */}
+          {winScore != null ? (
+            <div
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-semibold ${getScoreBg(winScore.score)}`}
+              title="Bid Readiness Score reflects proposal completeness, compliance coverage, vault reuse, delivery confidence, and commercial readiness."
+            >
               <Trophy className={`w-4 h-4 ${getScoreColor(winScore.score)}`} />
-              <span className={getScoreColor(winScore.score)}>{winScore.score}/100</span>
+              <span className={getScoreColor(winScore.score)}>Bid Readiness: {winScore.score}/100</span>
             </div>
-          )}
+          ) : !loadingScore ? (
+            <span className="text-xs text-muted-foreground">Bid Readiness: Not scored</span>
+          ) : null}
           {loadingScore && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           <Button
             variant="outline"
@@ -564,10 +569,15 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
             {/* Knowledge Vault Sources Used */}
             {(() => {
               const sourceNames = [...new Set(vaultSections.map((s: ProposalSection) => s.sourceName).filter(Boolean))] as string[];
+              const vaultSectionsCount = vaultSections?.length ?? proposal?.vaultSectionsUsed ?? 0;
+              const totalSections = proposal?.sections?.length ?? 0;
               if (sourceNames.length === 0) return null;
               return (
                 <div className="mt-4 border-t border-emerald-200 pt-3">
-                  <div className="text-xs font-semibold text-emerald-900 mb-2">Knowledge Vault Sources Used</div>
+                  <div className="text-xs font-semibold text-emerald-900 mb-1">Knowledge Vault Sources Used</div>
+                  <p className="text-xs text-emerald-700 mb-2">
+                    Vault Coverage: {vaultSectionsCount} of {totalSections} proposal sections sourced from Knowledge Vault ({sourceNames.length} unique sources referenced).
+                  </p>
                   <div className="flex flex-wrap gap-1.5">
                     {sourceNames.map((name) => (
                       <span key={name} className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white px-2.5 py-0.5 text-xs text-emerald-800">
@@ -579,6 +589,16 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 </div>
               );
             })()}
+          </CardContent>
+        </Card>
+      )}
+      {((proposal?.vaultSectionsUsed ?? 0) === 0 && (vaultSections?.length ?? 0) === 0 && (proposal?.sections?.length ?? 0) > 0) && (
+        <Card className="mb-6 border-slate-200 bg-slate-50 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Database className="w-5 h-5 text-slate-400 shrink-0" />
+              <span className="text-sm text-slate-600">No Knowledge Vault sources used.</span>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -766,7 +786,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                      <Zap className="w-3 h-3 mr-1" /> AI Generated
+                      <Zap className="w-3 h-3 mr-1" /> AI-assisted draft
                     </Badge>
                   )}
                 </div>
@@ -797,6 +817,16 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                   {section?.content}
                 </div>
               )}
+
+              {(() => {
+                const techKeywords = /sizing|material compat|leakage class|trim|actuator siz|hydrogen service|pressure class|body material|seating|packing|testing|certification|nace|api\s*\d|asme|iso\s*\d/i;
+                const isTechnical = techKeywords.test(section?.sectionTitle ?? "") && !artifact;
+                return isTechnical ? (
+                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    Preliminary proposal-stage engineering estimate. Final sizing/design must be validated by qualified engineers using company-approved tools and standards.
+                  </div>
+                ) : null;
+              })()}
 
               {artifact && <EngineeringArtifactBlock artifact={artifact} />}
 

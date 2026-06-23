@@ -39,7 +39,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       data: { winScore: scoreResult.total },
     });
 
-    return NextResponse.json(scoreResult);
+    return NextResponse.json({ score: scoreResult.total, breakdown: scoreResult });
   } catch (error: any) {
     console.error("Win score error:", error);
     return NextResponse.json({ error: "Failed to calculate score" }, { status: 500 });

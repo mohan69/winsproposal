@@ -1,11 +1,15 @@
 /**
- * IMI Severe-Service Control Valve Demo Seed Data
+ * Severe-Service Control Valve Demo Seed Data (IMI-style OEM reference)
  *
  * Usage: npx ts-node --compiler-options '{"module":"commonjs"}' scripts/seed-imi-demo.ts
  *
- * This script populates the Knowledge Vault with demo content for an IMI
- * severe-service control valve proposal demonstration. It creates text entries
- * that the proposal generation engine can retrieve as context.
+ * This script populates the Knowledge Vault with demo content for a
+ * severe-service control valve proposal demonstration using IMI-style
+ * severe-service valve OEM reference data. All entries are synthetic
+ * demo content created for proposal-demo purposes only — no confidential
+ * IMI proprietary data is included unless explicitly uploaded by the
+ * customer under NDA. WinsProposal is the proposal intelligence platform,
+ * not the valve OEM.
  *
  * The entries are created under a specified demo user email.
  */
@@ -265,7 +269,7 @@ Existing valves experienced severe erosion after 6 months due to flashing and ca
 4. Quick delivery to minimize plant downtime
 
 SOLUTION:
-Supplied angle-pattern severe-service control valves with:
+The proposed severe-service valve package included:
 - Tungsten carbide trim for erosion resistance
 - Multi-stage pressure letdown trim to eliminate cavitation
 - Stellite 6 overlay on seat and body contact areas
@@ -323,7 +327,7 @@ async function seed() {
         passwordHash: hashPassword("demo123"),
         name: "IMI Demo User",
         role: "admin",
-        companyName: "IMI Severe-Service Demo",
+        companyName: "Severe-Service Valve OEM Demo",
       },
     });
     console.log(`Created demo user: ${user.id}`);
