@@ -1072,7 +1072,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }));
 
       // Source badge (clean text, no emoji)
-      const sourceLabel = section.sourceType === "vault"
+      const isVaultSourced = section.sourceType === "vault" || section.sourceName != null;
+      const sourceLabel = isVaultSourced
         ? (section.sourceName ? `[From Knowledge Vault: ${section.sourceName}]` : "[From Knowledge Vault]")
         : "[AI-assisted draft]";
       docChildren.push(new Paragraph({
@@ -1080,7 +1081,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
           new TextRun({
             text: sourceLabel,
             size: SIZE_SMALL,
-            color: section.sourceType === "vault" ? ACCENT_COLOR : "3b82f6",
+            color: isVaultSourced ? ACCENT_COLOR : "3b82f6",
             italics: true,
             font: FONT_BODY,
           }),

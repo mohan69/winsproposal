@@ -524,7 +524,7 @@ const tocItems = tocEntries
             <div class="section-heading section-heading-block">
               <div class="section-number">${i + 1}</div>
               <h2 class="section-title">${s.sectionTitle}</h2>
-              ${s.sourceType === "vault" ? `<span class="source-badge">${s.sourceName ? `From Vault: ${escapeHtml(s.sourceName)}` : 'From Knowledge Vault'}</span>` : `<span class="source-badge-ai">AI-assisted draft</span>`}
+              ${s.sourceType === "vault" || s.sourceName != null ? `<span class="source-badge">${s.sourceName ? `From Vault: ${escapeHtml(s.sourceName)}` : 'From Knowledge Vault'}</span>` : `<span class="source-badge-ai">AI-assisted draft</span>`}
             </div>
             <div class="section-intro section-body">
               ${s.contentHtml}

@@ -309,19 +309,22 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
                     const templateName = inference.isSevereServiceValve
                       ? formatSevereServiceTemplateMetadata(inference)
                       : selectedTemplate?.name ?? (templateType || "General");
+                    const initialVaultSectionsUsed = inference.isSevereServiceValve ? Math.min(relevantVaultSections.length + relevantTextEntries.length, 8) : 0;
+                    const initialVaultDocumentsUsed = inference.isSevereServiceValve ? Math.max(1, new Set(relevantVaultSections.map((s: any) => s?.documentFilename ?? s?.sourceName ?? s?.title).filter(Boolean)).size) : 0;
                     const sections = attachDeterministicEngineeringArtifacts(
                       ensureSevereServiceSections(
                         Array.isArray(parsed?.sections) ? parsed.sections : [],
                         inference,
-                        extractedData
+                        extractedData,
+                        inference.isSevereServiceValve ? { vaultSectionsUsed: initialVaultSectionsUsed, vaultDocumentsUsed: initialVaultDocumentsUsed, templateType: templateName, industry: inference.industryLabel } : undefined
                       ),
                       templateName,
                       extractedData
                     );
                     const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
                     const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
-                    const matchedVaultSectionsUsed = inference.isSevereServiceValve ? Math.min(relevantVaultSections.length + relevantTextEntries.length, 8) : 0;
-                    const matchedVaultDocumentsUsed = inference.isSevereServiceValve ? Math.max(1, new Set(relevantVaultSections.map((s: any) => s?.documentFilename ?? s?.sourceName ?? s?.title).filter(Boolean)).size) : 0;
+                    const matchedVaultSectionsUsed = initialVaultSectionsUsed;
+                    const matchedVaultDocumentsUsed = initialVaultDocumentsUsed;
 
                     const validSizes = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
                     const proposal = await prisma.proposal.create({
@@ -416,19 +419,22 @@ ${!vaultContext && !textEntriesContext ? "No vault content available. Generate a
               const templateName = inference.isSevereServiceValve
                 ? formatSevereServiceTemplateMetadata(inference)
                 : selectedTemplate?.name ?? (templateType || "General");
+              const initialVaultSectionsUsed = inference.isSevereServiceValve ? Math.min(relevantVaultSections.length + relevantTextEntries.length, 8) : 0;
+              const initialVaultDocumentsUsed = inference.isSevereServiceValve ? Math.max(1, new Set(relevantVaultSections.map((s: any) => s?.documentFilename ?? s?.sourceName ?? s?.title).filter(Boolean)).size) : 0;
               const sections = attachDeterministicEngineeringArtifacts(
                 ensureSevereServiceSections(
                   Array.isArray(parsed?.sections) ? parsed.sections : [],
                   inference,
-                  extractedData
+                  extractedData,
+                  inference.isSevereServiceValve ? { vaultSectionsUsed: initialVaultSectionsUsed, vaultDocumentsUsed: initialVaultDocumentsUsed, templateType: templateName, industry: inference.industryLabel } : undefined
                 ),
                 templateName,
                 extractedData
               );
               const vaultSectionIds = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceId).map((s: any) => s.sourceId));
               const vaultDocumentNames = new Set(sections.filter((s: any) => s?.sourceType === "vault" && s?.sourceName).map((s: any) => s.sourceName));
-              const matchedVaultSectionsUsed = inference.isSevereServiceValve ? Math.min(relevantVaultSections.length + relevantTextEntries.length, 8) : 0;
-              const matchedVaultDocumentsUsed = inference.isSevereServiceValve ? Math.max(1, new Set(relevantVaultSections.map((s: any) => s?.documentFilename ?? s?.sourceName ?? s?.title).filter(Boolean)).size) : 0;
+              const matchedVaultSectionsUsed = initialVaultSectionsUsed;
+              const matchedVaultDocumentsUsed = initialVaultDocumentsUsed;
               const validSizes2 = ["startup", "sme", "mid_market", "enterprise", "conglomerate"];
               const proposal = await prisma.proposal.create({
                 data: {

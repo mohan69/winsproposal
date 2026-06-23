@@ -437,7 +437,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
     );
   }
 
-  const vaultSections = proposal?.sections?.filter((s: ProposalSection) => s?.sourceType === "vault") ?? [];
+  const vaultSections = proposal?.sections?.filter((s: ProposalSection) => s?.sourceType === "vault" || s?.sourceName != null) ?? [];
   const checkedCount = checklistItems.filter((i) => i.checked).length;
   const templateMetadata = parseProposalTemplateMetadata(proposal?.templateType);
   const rfpIntelligence = inferRfpIntelligence(proposal?.rfp?.extractedData ?? {});
@@ -550,11 +550,18 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
       {((proposal?.vaultSectionsUsed ?? 0) > 0 || (vaultSections?.length ?? 0) > 0) && (
         <Card className="mb-6 border-emerald-200 bg-emerald-50 shadow-sm">
           <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Database className="w-5 h-5 text-emerald-600 shrink-0" />
-              <span className="text-sm text-emerald-800">
-                Generated using <strong>{Math.max(vaultSections?.length ?? 0, proposal?.vaultSectionsUsed ?? 0)}</strong> vault sections from <strong>{proposal?.vaultDocumentsUsed ?? 0}</strong> documents
-              </span>
+            <div className="flex items-start gap-3">
+              <Database className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-sm text-emerald-800">
+                  <strong>Vault Coverage:</strong> {Math.max(vaultSections?.length ?? 0, proposal?.vaultSectionsUsed ?? 0)} of {proposal?.sections?.length ?? 0} proposal sections sourced from Knowledge Vault
+                </div>
+                {(() => {
+                  const uniqueSources = [...new Set(vaultSections.map((s: ProposalSection) => s.sourceName).filter(Boolean))].length;
+                  if (uniqueSources === 0) return null;
+                  return <div className="text-xs text-emerald-700 mt-0.5">{uniqueSources} unique source{uniqueSources !== 1 ? "s" : ""} from {proposal?.vaultDocumentsUsed ?? 0} document{proposal?.vaultDocumentsUsed !== 1 ? "s" : ""} referenced</div>;
+                })()}
+              </div>
             </div>
             {rfpIntelligence.isSevereServiceValve && (
               <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -576,7 +583,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 <div className="mt-4 border-t border-emerald-200 pt-3">
                   <div className="text-xs font-semibold text-emerald-900 mb-1">Knowledge Vault Sources Used</div>
                   <p className="text-xs text-emerald-700 mb-2">
-                    Vault Coverage: {vaultSectionsCount} of {totalSections} proposal sections sourced from Knowledge Vault ({sourceNames.length} unique sources referenced).
+                    {sourceNames.length} unique source{sourceNames.length !== 1 ? "s" : ""} referenced in the proposal sections above.
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {sourceNames.map((name) => (
@@ -780,7 +787,7 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
                   <h3 className="font-display font-semibold">{section?.sectionTitle}</h3>
-                  {section?.sourceType === "vault" ? (
+                  {section?.sourceType === "vault" || section?.sourceName != null ? (
                     <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
                       <Database className="w-3 h-3 mr-1" /> From Vault
                     </Badge>

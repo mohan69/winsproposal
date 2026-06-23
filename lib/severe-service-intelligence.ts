@@ -1,4 +1,6 @@
-﻿export const SEVERE_SERVICE_DISCLAIMER =
+﻿import { calculateWinScore } from "@/lib/win-score";
+
+export const SEVERE_SERVICE_DISCLAIMER =
   "Preliminary proposal-stage engineering estimate. Final sizing/design must be validated by qualified engineers using company-approved tools and standards.";
 
 export const HYDROGEN_EXECUTIVE_ROI_TEXT =
@@ -719,15 +721,14 @@ function rfpExtractionIntelligence(intelligence: RfpIntelligence, extractedData:
 Extraction status: proposal-ready intelligence generated for demo review. Final commercial and engineering commitments require owner approval.`;
 }
 
-function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any) {
+function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any, overallWinScore?: number | null) {
   const hydrogen = intelligence.applicationId === "hydrogen-process-control";
-  if (hydrogen) return HYDROGEN_BID_NO_BID_TEXT;
   const technical = hydrogen ? 82 : 86;
   const commercial = hydrogen ? 78 : 80;
   const strategic = hydrogen ? 84 : 88;
   const marginRisk = hydrogen ? 70 : 74;
   const deliveryRisk = hydrogen ? 74 : 75;
-  const finalScore = hydrogen ? 78 : Math.round(technical * 0.3 + commercial * 0.2 + strategic * 0.2 + marginRisk * 0.15 + deliveryRisk * 0.15);
+  const displayScore = overallWinScore ?? Math.round(technical * 0.3 + commercial * 0.2 + strategic * 0.2 + marginRisk * 0.15 + deliveryRisk * 0.15);
   return `| Bid Dimension | Score | Rationale |
 |---|---:|---|
 | Technical fit | ${technical}/100 | Strong severe-service fit; ${intelligence.recommendedEngineeringOutputs.slice(0, 3).join(", ")} covered. |
@@ -735,9 +736,9 @@ function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any) {
 | Strategic fit | ${strategic}/100 | Hydrogen and severe-service proposal capability aligns with strategic industrial growth themes. |
 | Margin risk | ${marginRisk}/100 | Specialty trim, accessories, testing, and documentation can affect margin until final scope freeze. |
 | Delivery risk | ${deliveryRisk}/100 | Schedule is feasible if drawing review, long-lead items, and witness points are confirmed early. |
-| Bid Readiness Score | ${finalScore}% | Recommendation: ${finalScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}. |
+| Bid Readiness Score | ${displayScore}% | Recommendation: ${displayScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}. |
 
-Bid governance note: Bid Readiness Score ${finalScore}%. Score is a proposal-stage decision aid, not an approval record.`;
+Bid governance note: Bid Readiness Score ${displayScore}%. Score is a proposal-stage decision aid, not an approval record.`;
 }
 
 function commercialSummary(intelligence: RfpIntelligence, extractedData: any) {
@@ -795,8 +796,23 @@ function drawingGallery(intelligence: RfpIntelligence) {
   ].join("\n");
 }
 
-export function ensureSevereServiceSections(sections: any[], intelligence: RfpIntelligence, extractedData: any) {
+export function ensureSevereServiceSections(sections: any[], intelligence: RfpIntelligence, extractedData: any, scoreInput?: { vaultSectionsUsed: number; vaultDocumentsUsed: number; templateType: string; industry: string }) {
   if (!intelligence.isSevereServiceValve) return sections;
+  let overallWinScore: number | undefined;
+  if (scoreInput) {
+    try {
+      overallWinScore = calculateWinScore({
+        sections,
+        vaultSectionsUsed: scoreInput.vaultSectionsUsed,
+        vaultDocumentsUsed: scoreInput.vaultDocumentsUsed,
+        templateType: scoreInput.templateType,
+        industry: scoreInput.industry,
+        hasCompliance: true,
+        complianceChecked: 0,
+        complianceTotal: 0,
+      }).total;
+    } catch { /* fall back to internal score */ }
+  }
   const existing = new Map((sections ?? []).map((section) => [normalizeText(section?.title ?? ""), section]));
   const lineItemRows = formatLineItemRows(extractedData);
   const hydrogen = intelligence.applicationId === "hydrogen-process-control";
@@ -805,7 +821,7 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
     "Executive ROI Impact Summary": hydrogenOverride("Executive ROI Impact Summary") ?? executiveRoiSummary(intelligence, extractedData),
     "Executive Summary": hydrogenOverride("Executive Summary") ?? `WinsProposal has classified this RFP as ${intelligence.application} and prepared the response as engineering proposal intelligence for severe-service control valves. The proposal response focuses on reducing proposal engineering effort, preserving application knowledge, improving compliance/TBE quality, and giving management a clear technical risk view.\n\n${SEVERE_SERVICE_DISCLAIMER}`,
     "RFP Extraction Intelligence": rfpExtractionIntelligence(intelligence, extractedData),
-    "Bid / No-Bid Scoring": bidNoBidScoring(intelligence, extractedData),
+    "Bid / No-Bid Scoring": bidNoBidScoring(intelligence, extractedData, overallWinScore),
     "Project Background / Opportunity Context": `The opportunity is aligned to ${intelligence.serviceType}. The proposal should emphasize process reliability, severe-service application knowledge, standards awareness, technical compliance, and controlled deviation handling.`,
     "Scope of Supply / Line Items": lineItemRows || "Tag-wise scope requires confirmation from the RFP line-item schedule. Proposal response should separate valve bodies, trim, actuators, accessories, documentation, inspection, testing, and exclusions.",
     "Process Conditions / Service Conditions": hydrogenOverride("Process Conditions / Service Conditions") ?? formatProcessConditions(extractedData),
