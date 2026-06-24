@@ -209,17 +209,31 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
         const res = await fetch(`/api/proposals/${proposalId}`);
         const data = await res.json().catch(() => null);
         if (!res?.ok || !data) throw new Error("Not found");
-        // Patch stale Bid / No-Bid section content with correct score
-        if (data?.sections && data.winScore != null) {
-          const score = Math.max(0, Math.min(100, Math.round(data.winScore)));
-          const recommendation = score >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation";
+
+        // Fetch live calculateWinScore result (single source of truth)
+        setLoadingScore(true);
+        let liveScore: number | null = null;
+        try {
+          const scoreRes = await fetch(`/api/proposals/${proposalId}/win-score`);
+          const scoreData = await scoreRes.json().catch(() => null);
+          if (scoreRes?.ok && scoreData) {
+            setWinScore(scoreData);
+            liveScore = scoreData.score;
+          }
+        } catch { /* silent */ }
+        setLoadingScore(false);
+
+        // Use live score for Bid/No-Bid section patching, falling back to stored winScore
+        const patchScore = liveScore ?? (data.winScore != null ? Math.max(0, Math.min(100, Math.round(data.winScore))) : null);
+        if (data?.sections && patchScore != null) {
+          const recommendation = patchScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation";
           data.sections = data.sections.map((s: any) => {
             if (/bid\s*\/\s*no-bid/i.test(s?.sectionTitle ?? "") && s?.content) {
               let c = s.content;
-              c = c.replace(/(\|\s*Bid Readiness Score\s*\|\s*)\d+(\/100|%)(\s*\|)/i, `$1${score}/100$3`);
-              c = c.replace(/(Bid governance note:\s*Bid Readiness Score\s*)\d+(\/100|%)/i, `$1${score}/100`);
+              c = c.replace(/(\|\s*Bid Readiness Score\s*\|\s*)\d+(\/100|%)(\s*\|)/i, `$1${patchScore}/100$3`);
+              c = c.replace(/(Bid governance note:\s*Bid Readiness Score\s*)\d+(\/100|%)/i, `$1${patchScore}/100`);
               c = c.replace(/(Recommendation:\s*)[^.]*\./i, `$1${recommendation}.`);
-              c = c.replace(/(Bid Readiness Score\s*:\s*)\d+(\/100|%)/gi, `$1${score}/100`);
+              c = c.replace(/(Bid Readiness Score\s*:\s*)\d+(\/100|%)/gi, `$1${patchScore}/100`);
               return { ...s, content: c };
             }
             return s;
@@ -237,19 +251,6 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
     }
     if (proposalId) load();
   }, [proposalId]);
-
-  useEffect(() => {
-    async function fetchScore() {
-      if (!proposal) return;
-      setLoadingScore(true);
-      try {
-        const res = await fetch(`/api/proposals/${proposalId}/win-score`);
-        const data = await res.json().catch(() => null);
-        if (res?.ok && data) setWinScore(data);
-      } catch { /* silent */ } finally { setLoadingScore(false); }
-    }
-    fetchScore();
-  }, [proposal, proposalId]);
 
   async function handleExportPdf() {
     setExporting(true);

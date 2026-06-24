@@ -754,7 +754,7 @@ const tocItems = tocEntries
     const vaultSourceNames = [...new Set(safeSections.filter(s => s.sourceType === "vault").map(s => s.sourceName).filter(Boolean))] as string[];
     if (vaultSourceNames.length === 0 && !severeServiceExport) return "";
     const vaultSectionsCount = data.vaultSectionsUsed;
-    const totalSectionCount = proposalSectionCount;
+    const totalSectionCount = safeSections.length;
     const vaultCardItems = vaultSourceNames.map(n => `<div class="vault-source-card"><strong>${escapeHtml(n)}</strong><span>Knowledge Vault source document</span></div>`).join("");
     return `<!-- KNOWLEDGE VAULT SOURCES -->
   <div class="page" style="page-break-before:always;break-before:page;">
