@@ -23,7 +23,7 @@ const sections = [
   { id: "background", sectionTitle: "Project Background / Opportunity Context", content: "Hydrogen hub project, process criticality, severe service valve requirement, compliance standards, OEM/EPC evaluation, and bid opportunity.", sourceType: "generated" },
   { id: "scope", sectionTitle: "Scope of Supply / Line Items", content: "RFP scope, valve package, actuator accessories, documentation, inspection, testing, and delivery.", sourceType: "generated" },
   { id: "technical", sectionTitle: "Technical Specification Response", content: "Technical compliance, material compatibility, standards awareness, TBE response, and exceptions.", sourceType: "generated" },
-  { id: "bid", sectionTitle: "Bid / No-Bid Scoring", content: "Bid Readiness Score: 78%. Recommendation: Bid with engineering and commercial validation.", sourceType: "generated" },
+  { id: "bid", sectionTitle: "Bid / No-Bid Scoring", content: "Bid Readiness Score: 68/100. Recommendation: Bid with engineering and commercial validation.", sourceType: "generated" },
   { id: "commercial", sectionTitle: "Commercial Summary", content: "Line Item | Qty | Indicative Commercial Basis | Optional Compliance / Testing Costs | Delivery Basis\nHV-H2-3101A/B/C/D | 4 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval\nFV-H2-3150A/B | 2 | Demo placeholder / subject to final sizing and material validation | PMI, leakage testing, MDR support where applicable | 14-16 weeks after drawing approval\nPV-H2-3190 | 1 | Demo placeholder / subject to final sizing and noise review | Noise review, leakage testing, MDR support where applicable | 16-18 weeks after drawing approval\nDOC-H2 MDR Dossier | 1 lot | Documentation package basis | Included with final MDR/data book; witness/hold point support optional | With final dispatch\nProposal validity: 60 days from bid due date.\nFinal pricing is demo placeholder only and requires customer-specific commercial validation.", sourceType: "generated" },
   { id: "timeline", sectionTitle: "Project Timeline & Delivery", content: "Milestone | Indicative Timeline | Dependency / Note\nDrawing submission | 4 weeks from PO / technical clearance | Subject to final process data and tag details\nEngineering validation | 1-2 weeks after final process data | Sizing, trim, materials, actuator, and accessory validation\nManufacturing lead time | 12-14 weeks after drawing approval | Subject to long-lead trims/materials/accessories\nInspection and testing | 2 weeks | Hydrotest, seat leakage, functional stroke, PMI/NDE where applicable\nShipping readiness | 3 weeks after test clearance | Subject to release note and documentation acceptance\nFinal MDR/data book | With dispatch / post-final inspection | Includes MTC, PMI, test records, certificates, and deviation register", sourceType: "generated" },
   { id: "drawings", sectionTitle: "Drawings and Technical Visuals", content: "Hydrogen service topology, P&ID-lite control loop, valve package schematic, material traceability workflow, and inspection dossier workflow.", sourceType: "generated" },
@@ -95,10 +95,11 @@ assertNotIncludes(html, "CCI Severe Service Solutions</div>", "Cover branding");
 assertIncludes(html, "Prepared by: WinsProposal Demo Engine", "Cover branding");
 assertIncludes(html, "Prepared for: Demo Customer / Severe-Service Valve OEM", "Cover branding");
 assertIncludes(html, "Bid Readiness Score", "Cover score");
-assertIncludes(html, "78%", "Cover score");
-assertIncludes(html, "Bid Readiness Score: 78%", "Bid score consistency");
+assertIncludes(html, "42/100", "Cover score");
+assertIncludes(html, "Bid Readiness Score:", "Bid score on cover");
+assertNotIncludes(html, "Bid Readiness Score: 78%", "Bid score no longer uses 78%");
 assertNotIncludes(html, "Win Score", "Cover score");
-assertNotIncludes(html, "42%</div>", "Cover score");
+assertNotIncludes(html, "78%", "Cover score");
 assertNotIncludes(html, "Bid Score 88%", "Bid score consistency");
 assertNotIncludes(html, "final bid score 88%", "Bid score consistency");
 assertIncludes(html, "Proposal Sections", "Cover score");

@@ -725,9 +725,9 @@ function bidNoBidScoring(intelligence: RfpIntelligence, extractedData: any, over
 | Strategic fit | ${strategic}/100 | Hydrogen and severe-service proposal capability aligns with strategic industrial growth themes. |
 | Margin risk | ${marginRisk}/100 | Specialty trim, accessories, testing, and documentation can affect margin until final scope freeze. |
 | Delivery risk | ${deliveryRisk}/100 | Schedule is feasible if drawing review, long-lead items, and witness points are confirmed early. |
-| Bid Readiness Score | ${displayScore}% | Recommendation: ${displayScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}. |
+| Bid Readiness Score | ${displayScore}/100 | Recommendation: ${displayScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}. |
 
-Bid governance note: Bid Readiness Score ${displayScore}%. Score is a proposal-stage decision aid, not an approval record.`;
+Bid governance note: Bid Readiness Score ${displayScore}/100. Score is a proposal-stage decision aid, not an approval record.`;
 }
 
 function commercialSummary(intelligence: RfpIntelligence, extractedData: any) {
@@ -837,16 +837,32 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
     "Executive Dashboard Snapshot": hydrogenOverride("Executive Dashboard Snapshot") ?? executiveDashboardSnapshot(intelligence, extractedData),
   };
 
+  // Known vault-backed section patterns that should show "From Vault" when deterministically generated
+  const vaultBackedSectionTitles = [
+    "Scope of Supply / Line Items",
+    "Process Conditions / Service Conditions",
+    "Technical Specification Response",
+    "Datasheet Summary",
+    "Compliance Matrix",
+    "Technical Bid Evaluation Summary",
+    "Inspection and Testing Plan",
+    "QA/QC and Documentation Plan",
+  ];
+
   return SEVERE_SERVICE_SECTION_SPECS.map(([title]) => {
     const found = existing.get(normalizeText(title));
+    const isVaultBacked = vaultBackedSectionTitles.some(t => normalizeText(t) === normalizeText(title));
     const forceDeterministic = /executive roi impact summary|executive summary|bid\s*\/\s*no-bid|scope of supply|process conditions|preliminary engineering calculation summary|datasheet summary|technical bid evaluation summary|drawings and technical visuals|project timeline|delivery|commercial summary|executive dashboard/i.test(title);
     if (!forceDeterministic && found?.content && String(found.content).trim().length > 80) return found;
+    // Vault-backed sections get sourceType="vault" even when regenerated deterministically
+    const effectiveSourceType = isVaultBacked ? "vault" : (found?.sourceType === "vault" ? "vault" : "generated");
+    const effectiveSourceName = isVaultBacked ? (found?.sourceName || "Knowledge Vault") : (found?.sourceName ?? null);
     return {
       title,
       content: sectionContent[title] ?? `${title} for ${intelligence.application}. ${SEVERE_SERVICE_DISCLAIMER}`,
-      sourceType: found?.sourceType === "vault" ? "vault" : "generated",
+      sourceType: effectiveSourceType,
       sourceId: found?.sourceId ?? null,
-      sourceName: found?.sourceName ?? null,
+      sourceName: effectiveSourceName,
     };
   });
 }
