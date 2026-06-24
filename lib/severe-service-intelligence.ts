@@ -867,6 +867,49 @@ export function ensureSevereServiceSections(sections: any[], intelligence: RfpIn
   });
 }
 
+/**
+ * Patches the final Bid Readiness Score row and governance note within an existing
+ * Bid / No-Bid Scoring section's markdown content to reflect the real-time
+ * calculateWinScore result.  Dimension scores (Technical fit, Commercial
+ * attractiveness, etc.) are left untouched.
+ *
+ * @param content  The stored markdown content of the Bid / No-Bid section.
+ * @param score    The overall score from calculateWinScore (0-100).
+ * @returns        Patched markdown with the correct final score and governance note.
+ */
+export function patchBidNoBidScore(content: string, score: number): string {
+  const clamped = Math.max(0, Math.min(100, Math.round(score)));
+  const recommendation = clamped >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation";
+
+  // Replace the final Bid Readiness Score row (pipe-delimited table row)
+  // Matches: | Bid Readiness Score | 79/100 | or | Bid Readiness Score | 79% |
+  let patched = content.replace(
+    /(\|\s*Bid Readiness Score\s*\|\s*)\d+(\/100|%)(\s*\|)/i,
+    `$1${clamped}/100$3`,
+  );
+
+  // Replace the governance note line
+  // Matches: Bid governance note: Bid Readiness Score 79/100.
+  patched = patched.replace(
+    /(Bid governance note:\s*Bid Readiness Score\s*)\d+(\/100|%)/i,
+    `$1${clamped}/100`,
+  );
+
+  // Replace the recommendation text after the final score
+  patched = patched.replace(
+    /(Recommendation:\s*)[^.]*\./i,
+    `$1${recommendation}.`,
+  );
+
+  // Defensive: also catch any "Bid Readiness Score: 79%" or "Bid Readiness Score: 79/100" flat text (not pipe-delimited)
+  patched = patched.replace(
+    /(Bid Readiness Score\s*:\s*)\d+(\/100|%)/gi,
+    `$1${clamped}/100`,
+  );
+
+  return patched;
+}
+
 export function selectRelevantSevereServiceVaultItems(items: any[], intelligence: RfpIntelligence, extractedData: any, limit: number) {
   const rfpText = normalizeText(flattenExtractedData(extractedData));
   const priorityTerms = [

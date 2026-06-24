@@ -12,7 +12,7 @@ import { PdfRenderError, renderHtmlToPdf } from "@/lib/pdf-renderer";
 import { getBestVisualizationType } from "@/lib/visualization-service";
 import { buildEngineeringArtifact } from "@/lib/engineering-artifacts";
 import { getDrawingExportKey, renderDrawingPackagePng } from "@/lib/export-diagram-renderer";
-import { getHydrogenSectionContentOverride, getHydrogenTbeData, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getHydrogenSectionContentOverride, getHydrogenTbeData, inferRfpIntelligence, parseProposalTemplateMetadata, patchBidNoBidScore } from "@/lib/severe-service-intelligence";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -81,6 +81,12 @@ export async function GET(request: Request, { params }: { params: { id: string }
       ...section,
       content: hydrogenExport ? getHydrogenSectionContentOverride(section.sectionTitle, extractedData) ?? section.content : section.content,
     }));
+
+    // Patch stale Bid / No-Bid section content with fresh calculateWinScore result
+    const bidSection = exportSections.find((s) => /bid\s*\/\s*no-bid/i.test(s.sectionTitle));
+    if (bidSection) {
+      bidSection.content = patchBidNoBidScore(bidSection.content, scoreResult.total);
+    }
 
     const drawingImageData: Record<string, string> = {};
     if (includeDiagrams) {

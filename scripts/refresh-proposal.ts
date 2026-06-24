@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
+import { patchBidNoBidScore } from "@/lib/severe-service-intelligence";
 
 const VAULT_BACKED_SECTION_TITLES = [
   "Scope of Supply / Line Items",
@@ -34,12 +35,30 @@ async function refreshProposal(proposalId: string) {
     console.log(`Vault sections used (stored): ${proposal.vaultSectionsUsed}`);
     console.log(`Vault documents used (stored): ${proposal.vaultDocumentsUsed}`);
 
-    // 1. Update sourceType/sourceName for known vault-backed sections
+    // 1. Recalculate win score
+    const checklistItems = (proposal.complianceChecklist?.checklistItems ?? []) as any[];
+    const complianceChecked = checklistItems.filter((item: any) => item?.checked).length;
+    const complianceTotal = checklistItems.length;
+
+    const scoreResult = calculateWinScore({
+      sections: proposal.sections,
+      vaultSectionsUsed: proposal.vaultSectionsUsed,
+      vaultDocumentsUsed: proposal.vaultDocumentsUsed,
+      templateType: proposal.templateType,
+      industry: proposal.industry,
+      hasCompliance: !!proposal.complianceChecklist,
+      complianceChecked,
+      complianceTotal,
+    });
+
+    const newScore = scoreResult.total;
+    console.log(`Recalculated winScore: ${newScore}`);
+
+    // 2. Update sourceType/sourceName for known vault-backed sections
     let vaultSectionCount = 0;
     for (const section of proposal.sections) {
       const isVaultBacked = VAULT_BACKED_SECTION_TITLES.includes(section.sectionTitle);
       if (isVaultBacked) {
-        const needsUpdate = section.sourceType !== "vault" || (section.sourceName !== "Knowledge Vault" && section.sourceName !== section.sourceName);
         if (section.sourceType !== "vault" || !section.sourceName) {
           await prisma.proposalSection.update({
             where: { id: section.id },
@@ -54,60 +73,25 @@ async function refreshProposal(proposalId: string) {
       }
     }
 
-    // 2. Update Bid / No-Bid Scoring section content to reflect recalculated score
+    // 3. Rewrite Bid / No-Bid Scoring section content with correct score
     const bidNoBidSection = proposal.sections.find(
       (s) => s.sectionTitle === "Bid / No-Bid Scoring"
     );
 
-    // Recalculate win score
-    const checklistItems = (proposal.complianceChecklist?.checklistItems ?? []) as any[];
-    const complianceChecked = checklistItems.filter((item: any) => item?.checked).length;
-    const complianceTotal = checklistItems.length;
-
-    const scoreResult = calculateWinScore({
-      sections: proposal.sections,
-      vaultSectionsUsed: proposal.vaultSectionsUsed || vaultSectionCount,
-      vaultDocumentsUsed: proposal.vaultDocumentsUsed,
-      templateType: proposal.templateType,
-      industry: proposal.industry,
-      hasCompliance: !!proposal.complianceChecklist,
-      complianceChecked,
-      complianceTotal,
-    });
-
-    const newScore = scoreResult.total;
-    console.log(`Recalculated winScore: ${newScore}`);
-
     if (bidNoBidSection) {
-      let updatedContent = bidNoBidSection.content;
-      // Replace any existing Bid Readiness Score line
-      updatedContent = updatedContent.replace(
-        /Bid Readiness Score\s*[|:]\s*\d+(\/100|%)/g,
-        `Bid Readiness Score | ${newScore}/100`
-      );
-      // Replace governance note
-      updatedContent = updatedContent.replace(
-        /Bid governance note: Bid Readiness Score \d+(\/100|%)/g,
-        `Bid governance note: Bid Readiness Score ${newScore}/100`
-      );
-      // Replace recommendation
-      updatedContent = updatedContent.replace(
-        /Recommendation: [^.]*\./g,
-        `Recommendation: ${newScore >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation"}.`
-      );
-
+      const updatedContent = patchBidNoBidScore(bidNoBidSection.content, newScore);
       if (updatedContent !== bidNoBidSection.content) {
         await prisma.proposalSection.update({
           where: { id: bidNoBidSection.id },
           data: { content: updatedContent },
         });
-        console.log(`  Updated Bid / No-Bid Scoring content with score ${newScore}/100`);
+        console.log(`  Rewrote Bid / No-Bid Scoring content with score ${newScore}/100`);
       } else {
-        console.log(`  Bid / No-Bid Scoring section already up to date`);
+        console.log(`  Bid / No-Bid Scoring section already reflects score ${newScore}/100`);
       }
     }
 
-    // 3. Update proposal-level metadata
+    // 4. Update proposal-level metadata
     await prisma.proposal.update({
       where: { id: proposalId },
       data: {

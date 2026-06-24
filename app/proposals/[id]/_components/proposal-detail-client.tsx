@@ -209,6 +209,22 @@ export function ProposalDetailClient({ proposalId }: { proposalId: string }) {
         const res = await fetch(`/api/proposals/${proposalId}`);
         const data = await res.json().catch(() => null);
         if (!res?.ok || !data) throw new Error("Not found");
+        // Patch stale Bid / No-Bid section content with correct score
+        if (data?.sections && data.winScore != null) {
+          const score = Math.max(0, Math.min(100, Math.round(data.winScore)));
+          const recommendation = score >= 85 ? "Bid - strong fit" : "Bid with engineering and commercial validation";
+          data.sections = data.sections.map((s: any) => {
+            if (/bid\s*\/\s*no-bid/i.test(s?.sectionTitle ?? "") && s?.content) {
+              let c = s.content;
+              c = c.replace(/(\|\s*Bid Readiness Score\s*\|\s*)\d+(\/100|%)(\s*\|)/i, `$1${score}/100$3`);
+              c = c.replace(/(Bid governance note:\s*Bid Readiness Score\s*)\d+(\/100|%)/i, `$1${score}/100`);
+              c = c.replace(/(Recommendation:\s*)[^.]*\./i, `$1${recommendation}.`);
+              c = c.replace(/(Bid Readiness Score\s*:\s*)\d+(\/100|%)/gi, `$1${score}/100`);
+              return { ...s, content: c };
+            }
+            return s;
+          });
+        }
         setProposal(data);
         if (data?.complianceChecklist?.checklistItems) {
           setChecklistItems(data.complianceChecklist.checklistItems as ComplianceItem[]);

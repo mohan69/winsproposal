@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
 import { calculateWinScore } from "@/lib/win-score";
 import { generateVisualization, getBestVisualizationType, getFallbackVisualization, getMermaidImageUrl, shouldRenderProposalDiagram, type VisualizationType } from "@/lib/visualization-service";
-import { getHydrogenSectionContentOverride, getHydrogenTbeData, getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, parseProposalTemplateMetadata } from "@/lib/severe-service-intelligence";
+import { getHydrogenSectionContentOverride, getHydrogenTbeData, getSevereServiceVaultSourceCategories, HYDROGEN_EXECUTIVE_ROI_TEXT, inferRfpIntelligence, parseProposalTemplateMetadata, patchBidNoBidScore } from "@/lib/severe-service-intelligence";
 import {
   buildEngineeringArtifact,
   getProposalVisualSpec,
@@ -878,6 +878,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
       ...section,
       content: hydrogenExport ? getHydrogenSectionContentOverride(section.sectionTitle, extractedData) ?? section.content : section.content,
     }));
+
+    // Patch stale Bid / No-Bid section content with fresh calculateWinScore result
+    const bidSection = exportSections.find((s) => /bid\s*\/\s*no-bid/i.test(s.sectionTitle));
+    if (bidSection) {
+      bidSection.content = patchBidNoBidScore(bidSection.content, scoreResult.total);
+    }
+
     const createdDate = proposal.createdAt.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
     // Fetch logo image if available
